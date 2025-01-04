@@ -72,39 +72,16 @@ impl Renderer {
 
         let indices: [u32; 6] = [0, 1, 3, 1, 2, 3];
 
+        let mut vao = 0;
         unsafe {
-            let mut vao = 0;
             gl::GenVertexArrays(1, &mut vao);
             gl::BindVertexArray(vao);
+        }
 
-            let vbo = Buffer::new(buffer::BufferType::Vertex);
-            vbo.set_data(&vertices);
+        let vbo = Buffer::new(buffer::BufferType::Vertex);
+        vbo.set_data(&vertices);
 
-            let ebo = Buffer::new(buffer::BufferType::Index);
-            ebo.set_data(&indices);
-
-            let vertex_shader = Shader::new(shader::ShaderType::Vertex, VERTEX_SHADER);
-            if let Err(e) = vertex_shader.compile() {
-                println!("Failed to compile vertex shader: {}", e);
-            }
-
-            let fragment_shader = Shader::new(shader::ShaderType::Fragment, FRAGMENT_SHADER);
-            if let Err(e) = fragment_shader.compile() {
-                println!("Failed to compile fragment shader: {}", e);
-            }
-
-            let shader_program = ShaderProgram::new();
-            shader_program.attach_shader(&vertex_shader);
-            shader_program.attach_shader(&fragment_shader);
-            if let Err(e) = shader_program.link() {
-                println!("Failed to link shader program: {}", e);
-            }
-
-            self.shader = shader_program;
-            self.vbo = vbo;
-            self.ebo = ebo;
-            self.vao = vao;
-
+        unsafe {
             gl::VertexAttribPointer(
                 0,
                 3,
@@ -115,6 +92,31 @@ impl Renderer {
             );
             gl::EnableVertexAttribArray(0);
         }
+
+        let ebo = Buffer::new(buffer::BufferType::Index);
+        ebo.set_data(&indices);
+
+        let vertex_shader = Shader::new(shader::ShaderType::Vertex, VERTEX_SHADER);
+        if let Err(e) = vertex_shader.compile() {
+            println!("Failed to compile vertex shader: {}", e);
+        }
+
+        let fragment_shader = Shader::new(shader::ShaderType::Fragment, FRAGMENT_SHADER);
+        if let Err(e) = fragment_shader.compile() {
+            println!("Failed to compile fragment shader: {}", e);
+        }
+
+        let shader_program = ShaderProgram::new();
+        shader_program.attach_shader(&vertex_shader);
+        shader_program.attach_shader(&fragment_shader);
+        if let Err(e) = shader_program.link() {
+            println!("Failed to link shader program: {}", e);
+        }
+
+        self.shader = shader_program;
+        self.vbo = vbo;
+        self.ebo = ebo;
+        self.vao = vao;
     }
 
     pub fn render(&self) {
