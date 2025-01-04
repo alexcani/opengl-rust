@@ -49,7 +49,7 @@ impl App {
             context,
         }) = self.gfx_data.as_ref()
         {
-            let renderer = self.renderer.as_ref().unwrap();
+            let renderer = self.renderer.as_mut().unwrap();
             renderer.render();
             surface.swap_buffers(context).unwrap();
         }
