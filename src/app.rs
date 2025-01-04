@@ -6,8 +6,9 @@ use glutin::prelude::*;
 use glutin::surface::{Surface, WindowSurface};
 use glutin_winit::{DisplayBuilder, GlWindow};
 use winit::application::ApplicationHandler;
-use winit::event::WindowEvent;
+use winit::event::{KeyEvent, WindowEvent};
 use winit::event_loop::ActiveEventLoop;
+use winit::keyboard::{KeyCode, PhysicalKey};
 use winit::raw_window_handle::HasWindowHandle;
 use winit::window::Window;
 
@@ -123,6 +124,29 @@ impl ApplicationHandler for App {
             WindowEvent::Resized(size) if size.height > 0 && size.width > 0 => {
                 let renderer = self.renderer.as_ref().unwrap();
                 renderer.resize(size.width, size.height);
+            }
+            WindowEvent::KeyboardInput {
+                event:
+                    KeyEvent {
+                        repeat: false,
+                        physical_key: PhysicalKey::Code(key_code),
+                        state,
+                        ..
+                    },
+                ..
+            } => {
+                match key_code {
+                    KeyCode::Escape => {
+                        event_loop.exit();
+                    }
+                    KeyCode::KeyL => {
+                        if state == winit::event::ElementState::Pressed {
+                            let renderer = self.renderer.as_mut().unwrap();
+                            renderer.toggle_wireframe();
+                        }
+                    }
+                    _ => {}
+                }
             }
             _ => {}
         }

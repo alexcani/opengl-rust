@@ -3,7 +3,9 @@ use glutin::display::GlDisplay;
 
 use gl::types::*;
 
-pub struct Renderer;
+pub struct Renderer {
+    wireframe: bool,
+}
 impl Renderer {
     pub fn new<D: GlDisplay>(display: &D) -> Self {
         gl::load_with(|s| {
@@ -11,7 +13,9 @@ impl Renderer {
             display.get_proc_address(s.as_c_str())
         });
 
-        Renderer
+        let mut renderer = Renderer {
+            wireframe: false,
+        };
     }
 
     pub fn render(&self) {
@@ -24,6 +28,17 @@ impl Renderer {
     pub fn resize(&self, width: u32, height: u32) {
         unsafe {
             gl::Viewport(0, 0, width as GLsizei, height as GLsizei);
+        }
+    }
+
+    pub fn toggle_wireframe(&mut self) {
+        self.wireframe = !self.wireframe;
+        unsafe {
+            if self.wireframe {
+                gl::PolygonMode(gl::FRONT_AND_BACK, gl::LINE);
+            } else {
+                gl::PolygonMode(gl::FRONT_AND_BACK, gl::FILL);
+            }
         }
     }
 }
