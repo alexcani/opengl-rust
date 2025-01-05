@@ -2,6 +2,7 @@ mod buffer;
 mod shader;
 
 use std::ffi::CString;
+use std::time::Duration;
 
 use glutin::display::GlDisplay;
 
@@ -39,6 +40,11 @@ pub struct Renderer {
     vao: GLuint,
 }
 
+pub struct RenderInfo {
+    pub dt: Duration,   // Time since the last frame
+    pub time: Duration, // Time since the start of the application
+}
+
 impl Renderer {
     pub fn new<D: GlDisplay>(display: &D) -> Self {
         gl::load_with(|s| {
@@ -54,11 +60,15 @@ impl Renderer {
             vao: 0,
         };
 
-        renderer.init();
+        renderer.init().unwrap_or_else(|e| {
+            println!("Failed to initialize renderer: {}", e);
+            std::process::exit(1);
+        });
+
         renderer
     }
 
-    fn init(&mut self) {
+    fn init(&mut self) -> Result<(), String> {
         unsafe {
             gl::ClearColor(0.6, 0.4, 0.8, 1.0);
         }

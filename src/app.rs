@@ -1,4 +1,5 @@
 use std::error::Error;
+use std::time::Instant;
 
 use glutin::context::{ContextAttributesBuilder, GlProfile, PossiblyCurrentContext};
 use glutin::display::GetGlDisplay;
@@ -12,7 +13,7 @@ use winit::keyboard::{KeyCode, PhysicalKey};
 use winit::raw_window_handle::HasWindowHandle;
 use winit::window::Window;
 
-use crate::renderer::Renderer;
+use crate::renderer::{Renderer, RenderInfo};
 
 struct GxfData {
     window: Window,
@@ -23,6 +24,8 @@ struct GxfData {
 pub struct App {
     gfx_data: Option<GxfData>,
     renderer: Option<Renderer>,
+    start_time: Instant,
+    last_frame_time: Instant,
     exit_state: Result<(), Box<dyn Error>>,
 }
 
@@ -31,6 +34,8 @@ impl App {
         App {
             gfx_data: None,
             renderer: None,
+            start_time: Instant::now(),
+            last_frame_time: Instant::now(),
             exit_state: Ok(()),
         }
     }
@@ -49,8 +54,13 @@ impl App {
             context,
         }) = self.gfx_data.as_ref()
         {
+            let now = Instant::now();
+            let dt = now.duration_since(self.last_frame_time);
+            let time = now.duration_since(self.start_time);
+            self.last_frame_time = now;
+
             let renderer = self.renderer.as_mut().unwrap();
-            renderer.render();
+            renderer.render(RenderInfo { dt, time });
             surface.swap_buffers(context).unwrap();
         }
     }
