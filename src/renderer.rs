@@ -11,26 +11,11 @@ use shader::{Shader, ShaderProgram};
 
 use gl::types::*;
 
-const VERTEX_SHADER: &str = r#"
-#version 330 core
-layout (location = 0) in vec3 aPos;
-
-void main()
-{
-    gl_Position = vec4(aPos.x, aPos.y, aPos.z, 1.0);
-}
-"#;
-
-const FRAGMENT_SHADER: &str = r#"#version 330 core
-out vec4 FragColor;
-
-void main()
-{
-    FragColor = vec4(1.0f, 0.5f, 0.2f, 1.0f);
-}
-"#;
-
-type Vertex = [f32; 3];
+#[repr(C)]
+struct Vertex(
+    [f32; 3], // Position
+    [f32; 3], // Color
+);
 
 pub struct Renderer {
     wireframe: bool,
@@ -74,10 +59,10 @@ impl Renderer {
         }
 
         let vertices: [Vertex; 4] = [
-            [0.5, 0.5, 0.0],
-            [0.5, -0.5, 0.0],
-            [-0.5, -0.5, 0.0],
-            [-0.5, 0.5, 0.0],
+            Vertex([0.5, 0.5, 0.0], [1.0, 0.0, 0.0]),
+            Vertex([0.5, -0.5, 0.0], [0.0, 1.0, 0.0]),
+            Vertex([-0.5, -0.5, 0.0], [0.0, 0.0, 1.0]),
+            Vertex([-0.5, 0.5, 0.0], [1.0, 1.0, 1.0]),
         ];
 
         let indices: [u32; 6] = [0, 1, 3, 1, 2, 3];
@@ -89,7 +74,7 @@ impl Renderer {
         }
 
         let vbo = Buffer::new(buffer::BufferType::Vertex);
-        vbo.set_data(&vertices);
+        vbo.upload_data(&vertices);
 
         unsafe {
             gl::VertexAttribPointer(
@@ -101,38 +86,48 @@ impl Renderer {
                 std::ptr::null(),
             );
             gl::EnableVertexAttribArray(0);
+
+            gl::VertexAttribPointer(
+                1,
+                3,
+                gl::FLOAT,
+                gl::FALSE,
+                size_of::<Vertex>() as GLsizei,
+                (3 * size_of::<f32>()) as *const _,
+            );
+            gl::EnableVertexAttribArray(1);
         }
 
         let ebo = Buffer::new(buffer::BufferType::Index);
-        ebo.set_data(&indices);
+        ebo.upload_data(&indices);
 
-        let vertex_shader = Shader::new(shader::ShaderType::Vertex, VERTEX_SHADER);
-        if let Err(e) = vertex_shader.compile() {
-            println!("Failed to compile vertex shader: {}", e);
-        }
+        let vertex_shader =
+            Shader::from_file(shader::ShaderType::Vertex, "./shaders/basic_vertex.vs")?;
+        vertex_shader.compile()?;
 
-        let fragment_shader = Shader::new(shader::ShaderType::Fragment, FRAGMENT_SHADER);
-        if let Err(e) = fragment_shader.compile() {
-            println!("Failed to compile fragment shader: {}", e);
-        }
+        let fragment_shader =
+            Shader::from_file(shader::ShaderType::Fragment, "./shaders/basic_fragment.fs")?;
+        fragment_shader.compile()?;
 
         let shader_program = ShaderProgram::new();
         shader_program.attach_shader(&vertex_shader);
         shader_program.attach_shader(&fragment_shader);
-        if let Err(e) = shader_program.link() {
-            println!("Failed to link shader program: {}", e);
-        }
+        shader_program.link()?;
 
         self.shader = shader_program;
         self.vbo = vbo;
         self.ebo = ebo;
         self.vao = vao;
+
+        Ok(())
     }
 
-    pub fn render(&self) {
+    pub fn render(&mut self, args: RenderInfo) {
+        self.shader.use_program();
+        self.shader.set_uniform_1f("time", args.time.as_secs_f32());
+
         unsafe {
             gl::Clear(gl::COLOR_BUFFER_BIT);
-            self.shader.use_program();
             gl::DrawElements(gl::TRIANGLES, 6, gl::UNSIGNED_INT, std::ptr::null());
         }
     }
