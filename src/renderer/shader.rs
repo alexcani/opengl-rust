@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use gl::types::*;
 
 pub enum ShaderType {
@@ -23,6 +25,11 @@ impl Shader {
             gl::ShaderSource(id, 1, &(src.as_ptr().cast()), &(src.len().try_into().unwrap()));
         }
         Shader { id }
+    }
+
+    pub fn from_file(shader_type: ShaderType, path: &str) -> Result<Self, String> {
+        let src = std::fs::read_to_string(path).map_err(|e| e.to_string())?;
+        Ok(Shader::new(shader_type, &src))
     }
 
     pub fn compile(&self) -> Result<(), String> {
@@ -67,6 +74,7 @@ impl Drop for Shader {
 
 pub struct ShaderProgram {
     id: GLuint,
+    uniforms: HashMap<Box<str>, GLint>,
 }
 
 impl ShaderProgram {
@@ -74,7 +82,7 @@ impl ShaderProgram {
         let id = unsafe {
             gl::CreateProgram()
         };
-        ShaderProgram { id }
+        ShaderProgram { id, uniforms: HashMap::new() }
     }
 
     pub fn attach_shader(&self, shader: &Shader) {
@@ -114,6 +122,37 @@ impl ShaderProgram {
         unsafe {
             gl::UseProgram(self.id);
         }
+    }
+
+    #[allow(dead_code)]
+    pub fn set_uniform_4f(&mut self, name: &str, x: f32, y: f32, z: f32, w: f32) {
+        unsafe {
+            gl::Uniform4f(self.get_uniform_location(name), x, y, z, w);
+        }
+    }
+
+    #[allow(dead_code)]
+    pub fn set_uniform_1f(&mut self, name: &str, x: f32) {
+        unsafe {
+            gl::Uniform1f(self.get_uniform_location(name), x);
+        }
+    }
+
+    fn get_uniform_location(&mut self, name: &str) -> i32 {
+        if let Some(location) = self.uniforms.get(name) {
+            return *location;
+        }
+
+        let c_name = std::ffi::CString::new(name).unwrap();
+        let location = unsafe {
+            gl::GetUniformLocation(self.id, c_name.as_ptr())
+        };
+        if location == -1 {
+            panic!("Uniform '{}' not found", name);
+        }
+
+        self.uniforms.insert(name.into(), location);
+        location
     }
 }
 

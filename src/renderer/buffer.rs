@@ -29,7 +29,7 @@ impl Buffer {
         Buffer { id, ty: type_.as_gl_enum() }
     }
 
-    pub fn set_data<T>(&self, data: &[T]) {
+    pub fn upload_data<T>(&self, data: &[T]) {
         self.bind();
         unsafe {
             gl::BufferData(
@@ -41,12 +41,14 @@ impl Buffer {
         }
     }
 
+    #[allow(dead_code)]
     pub fn bind(&self) {
         unsafe {
             gl::BindBuffer(self.ty, self.id);
         }
     }
 
+    #[allow(dead_code)]
     pub fn unbind(&self) {
         unsafe {
             gl::BindBuffer(self.ty, 0);
