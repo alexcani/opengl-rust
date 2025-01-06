@@ -1,5 +1,6 @@
 mod buffer;
 mod shader;
+mod texture;
 
 use std::ffi::CString;
 use std::time::Duration;
@@ -8,6 +9,7 @@ use glutin::display::GlDisplay;
 
 use buffer::Buffer;
 use shader::{Shader, ShaderProgram};
+use texture::Texture2D;
 
 use gl::types::*;
 
@@ -15,6 +17,7 @@ use gl::types::*;
 struct Vertex(
     [f32; 3], // Position
     [f32; 3], // Color
+    [f32; 2], // TexCoords
 );
 
 pub struct Renderer {
@@ -23,6 +26,8 @@ pub struct Renderer {
     vbo: Buffer,
     ebo: Buffer,
     vao: GLuint,
+    texture: Texture2D,
+    texture_2: Texture2D,
 }
 
 pub struct RenderInfo {
@@ -43,6 +48,8 @@ impl Renderer {
             vbo: Buffer::new(buffer::BufferType::Vertex),
             ebo: Buffer::new(buffer::BufferType::Index),
             vao: 0,
+            texture: Texture2D::new(),
+            texture_2: Texture2D::new(),
         };
 
         renderer.init().unwrap_or_else(|e| {
@@ -59,10 +66,10 @@ impl Renderer {
         }
 
         let vertices: [Vertex; 4] = [
-            Vertex([0.5, 0.5, 0.0], [1.0, 0.0, 0.0]),
-            Vertex([0.5, -0.5, 0.0], [0.0, 1.0, 0.0]),
-            Vertex([-0.5, -0.5, 0.0], [0.0, 0.0, 1.0]),
-            Vertex([-0.5, 0.5, 0.0], [1.0, 1.0, 1.0]),
+            Vertex([0.5, 0.5, 0.0], [1.0, 0.0, 0.0], [1.0, 1.0]),
+            Vertex([0.5, -0.5, 0.0], [0.0, 1.0, 0.0], [1.0, 0.0]),
+            Vertex([-0.5, -0.5, 0.0], [0.0, 0.0, 1.0], [0.0, 0.0]),
+            Vertex([-0.5, 0.5, 0.0], [1.0, 1.0, 1.0], [0.0, 1.0]),
         ];
 
         let indices: [u32; 6] = [0, 1, 3, 1, 2, 3];
@@ -93,9 +100,19 @@ impl Renderer {
                 gl::FLOAT,
                 gl::FALSE,
                 size_of::<Vertex>() as GLsizei,
-                (3 * size_of::<f32>()) as *const _,
+                std::mem::offset_of!(Vertex, 1) as *const _,
             );
             gl::EnableVertexAttribArray(1);
+
+            gl::VertexAttribPointer(
+                2,
+                2,
+                gl::FLOAT,
+                gl::FALSE,
+                size_of::<Vertex>() as GLsizei,
+                std::mem::offset_of!(Vertex, 2) as *const _,
+            );
+            gl::EnableVertexAttribArray(2);
         }
 
         let ebo = Buffer::new(buffer::BufferType::Index);
@@ -114,18 +131,24 @@ impl Renderer {
         shader_program.attach_shader(&fragment_shader);
         shader_program.link()?;
 
+        let texture = Texture2D::new_from_file("./textures/container.jpg")?;
+        let texture_2 = Texture2D::new_from_file("./textures/awesomeface.png")?;
+
         self.shader = shader_program;
         self.vbo = vbo;
         self.ebo = ebo;
         self.vao = vao;
+        self.texture = texture;
+        self.texture_2 = texture_2;
 
         Ok(())
     }
 
     pub fn render(&mut self, args: RenderInfo) {
         self.shader.use_program();
-        self.shader.set_uniform_1f("time", args.time.as_secs_f32());
-
+        self.shader.set_uniform_1i("texture2", 1);
+        self.texture.bind_slot(0);
+        self.texture_2.bind_slot(1);
         unsafe {
             gl::Clear(gl::COLOR_BUFFER_BIT);
             gl::DrawElements(gl::TRIANGLES, 6, gl::UNSIGNED_INT, std::ptr::null());

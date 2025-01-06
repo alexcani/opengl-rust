@@ -1,12 +1,14 @@
 #version 450 core
 
 in vec4 ourColor;
+in vec2 TexCoord;
+
 out vec4 FragColor;
 
-uniform float time;
+uniform sampler2D texture1;
+uniform sampler2D texture2;
 
 void main()
 {
-    float multiplier = 0.5 + 0.5 * sin(time);
-    FragColor = vec4(ourColor.xyz * multiplier, 1.0);
+    FragColor = mix(texture(texture1, TexCoord), texture(texture2, TexCoord), 0.2);
 }
