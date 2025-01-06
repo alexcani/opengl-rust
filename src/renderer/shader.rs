@@ -138,6 +138,13 @@ impl ShaderProgram {
         }
     }
 
+    #[allow(dead_code)]
+    pub fn set_uniform_1i(&mut self, name: &str, x: i32) {
+        unsafe {
+            gl::Uniform1i(self.get_uniform_location(name), x);
+        }
+    }
+
     fn get_uniform_location(&mut self, name: &str) -> i32 {
         if let Some(location) = self.uniforms.get(name) {
             return *location;
