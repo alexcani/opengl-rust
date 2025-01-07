@@ -15,14 +15,15 @@ use winit::window::Window;
 
 use crate::renderer::{Renderer, RenderInfo};
 
-struct GxfData {
-    window: Window,
+struct GfxData {
     surface: Surface<WindowSurface>,
     context: PossiblyCurrentContext,
+    // Must be dropped last
+    window: Window,
 }
 
 pub struct App {
-    gfx_data: Option<GxfData>,
+    gfx_data: Option<GfxData>,
     renderer: Option<Renderer>,
     start_time: Instant,
     last_frame_time: Instant,
@@ -48,7 +49,7 @@ impl App {
     }
 
     fn render_and_swap(&mut self) {
-        if let Some(GxfData {
+        if let Some(GfxData {
             window: _,
             surface,
             context,
@@ -110,7 +111,7 @@ impl ApplicationHandler for App {
         };
         let context = context.make_current(&surface).unwrap();
 
-        self.gfx_data = Some(GxfData {
+        self.gfx_data = Some(GfxData {
             window,
             surface,
             context,
@@ -167,7 +168,7 @@ impl ApplicationHandler for App {
     }
 
     fn about_to_wait(&mut self, _event_loop: &ActiveEventLoop) {
-        if let Some(GxfData { window, .. }) = self.gfx_data.as_ref() {
+        if let Some(GfxData { window, .. }) = self.gfx_data.as_ref() {
             window.request_redraw();
         }
     }
