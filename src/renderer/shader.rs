@@ -145,6 +145,13 @@ impl ShaderProgram {
         }
     }
 
+    #[allow(dead_code)]
+    pub fn set_uniform_mat4(&mut self, name: &str, mat: &glam::Mat4) {
+        unsafe {
+            gl::UniformMatrix4fv(self.get_uniform_location(name), 1, gl::FALSE, mat.to_cols_array().as_ptr());
+        }
+    }
+
     fn get_uniform_location(&mut self, name: &str) -> i32 {
         if let Some(location) = self.uniforms.get(name) {
             return *location;

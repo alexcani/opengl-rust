@@ -147,6 +147,9 @@ impl Renderer {
     pub fn render(&mut self, args: RenderInfo) {
         self.shader.use_program();
         self.shader.set_uniform_1i("texture2", 1);
+        let scale = 1.0 + (args.time.as_secs_f32() * 0.5).sin() * 0.5;
+        let mat = glam::Mat4::from_scale_rotation_translation([scale, scale, scale].into(), glam::Quat::from_rotation_z(args.time.as_secs_f32()), [0.5, -0.5, 0.0].into());
+        self.shader.set_uniform_mat4("model", &mat);
         self.texture.bind_slot(0);
         self.texture_2.bind_slot(1);
         unsafe {
