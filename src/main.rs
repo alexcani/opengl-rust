@@ -1,5 +1,4 @@
 mod app;
-mod renderer;
 
 use std::error::Error;
 use winit::event_loop::EventLoop;

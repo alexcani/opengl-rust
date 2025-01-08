@@ -13,7 +13,7 @@ use winit::keyboard::{KeyCode, PhysicalKey};
 use winit::raw_window_handle::HasWindowHandle;
 use winit::window::Window;
 
-use crate::renderer::{Renderer, RenderInfo};
+use opengl_rust::renderer::{Renderer, RenderInfo};
 
 struct GfxData {
     surface: Surface<WindowSurface>,
