@@ -16,7 +16,6 @@ use gl::types::*;
 #[repr(C)]
 struct Vertex(
     [f32; 3], // Position
-    [f32; 3], // Color
     [f32; 2], // TexCoords
 );
 
@@ -28,6 +27,7 @@ pub struct Renderer {
     vao: GLuint,
     texture: Texture2D,
     texture_2: Texture2D,
+    size: (u32, u32),
 }
 
 pub struct RenderInfo {
@@ -50,6 +50,7 @@ impl Renderer {
             vao: 0,
             texture: Texture2D::new(),
             texture_2: Texture2D::new(),
+            size: (1, 1),
         };
 
         renderer.init().unwrap_or_else(|e| {
@@ -65,11 +66,43 @@ impl Renderer {
             gl::ClearColor(0.6, 0.4, 0.8, 1.0);
         }
 
-        let vertices: [Vertex; 4] = [
-            Vertex([0.5, 0.5, 0.0], [1.0, 0.0, 0.0], [1.0, 1.0]),
-            Vertex([0.5, -0.5, 0.0], [0.0, 1.0, 0.0], [1.0, 0.0]),
-            Vertex([-0.5, -0.5, 0.0], [0.0, 0.0, 1.0], [0.0, 0.0]),
-            Vertex([-0.5, 0.5, 0.0], [1.0, 1.0, 1.0], [0.0, 1.0]),
+        let vertices: [Vertex; 36] = [
+            Vertex([-0.5, -0.5, -0.5], [0.0, 0.0]),
+            Vertex([0.5, -0.5, -0.5], [1.0, 0.0]),
+            Vertex([0.5, 0.5, -0.5], [1.0, 1.0]),
+            Vertex([0.5, 0.5, -0.5], [1.0, 1.0]),
+            Vertex([-0.5, 0.5, -0.5], [0.0, 1.0]),
+            Vertex([-0.5, -0.5, -0.5], [0.0, 0.0]),
+            Vertex([-0.5, -0.5, 0.5], [0.0, 0.0]),
+            Vertex([0.5, -0.5, 0.5], [1.0, 0.0]),
+            Vertex([0.5, 0.5, 0.5], [1.0, 1.0]),
+            Vertex([0.5, 0.5, 0.5], [1.0, 1.0]),
+            Vertex([-0.5, 0.5, 0.5], [0.0, 1.0]),
+            Vertex([-0.5, -0.5, 0.5], [0.0, 0.0]),
+            Vertex([-0.5, 0.5, 0.5], [1.0, 0.0]),
+            Vertex([-0.5, 0.5, -0.5], [1.0, 1.0]),
+            Vertex([-0.5, -0.5, -0.5], [0.0, 1.0]),
+            Vertex([-0.5, -0.5, -0.5], [0.0, 1.0]),
+            Vertex([-0.5, -0.5, 0.5], [0.0, 0.0]),
+            Vertex([-0.5, 0.5, 0.5], [1.0, 0.0]),
+            Vertex([0.5, 0.5, 0.5], [1.0, 0.0]),
+            Vertex([0.5, 0.5, -0.5], [1.0, 1.0]),
+            Vertex([0.5, -0.5, -0.5], [0.0, 1.0]),
+            Vertex([0.5, -0.5, -0.5], [0.0, 1.0]),
+            Vertex([0.5, -0.5, 0.5], [0.0, 0.0]),
+            Vertex([0.5, 0.5, 0.5], [1.0, 0.0]),
+            Vertex([-0.5, -0.5, -0.5], [0.0, 1.0]),
+            Vertex([0.5, -0.5, -0.5], [1.0, 1.0]),
+            Vertex([0.5, -0.5, 0.5], [1.0, 0.0]),
+            Vertex([0.5, -0.5, 0.5], [1.0, 0.0]),
+            Vertex([-0.5, -0.5, 0.5], [0.0, 0.0]),
+            Vertex([-0.5, -0.5, -0.5], [0.0, 1.0]),
+            Vertex([-0.5, 0.5, -0.5], [0.0, 1.0]),
+            Vertex([0.5, 0.5, -0.5], [1.0, 1.0]),
+            Vertex([0.5, 0.5, 0.5], [1.0, 0.0]),
+            Vertex([0.5, 0.5, 0.5], [1.0, 0.0]),
+            Vertex([-0.5, 0.5, 0.5], [0.0, 0.0]),
+            Vertex([-0.5, 0.5, -0.5], [0.0, 1.0]),
         ];
 
         let indices: [u32; 6] = [0, 1, 3, 1, 2, 3];
@@ -96,23 +129,13 @@ impl Renderer {
 
             gl::VertexAttribPointer(
                 1,
-                3,
+                2,
                 gl::FLOAT,
                 gl::FALSE,
                 size_of::<Vertex>() as GLsizei,
                 std::mem::offset_of!(Vertex, 1) as *const _,
             );
             gl::EnableVertexAttribArray(1);
-
-            gl::VertexAttribPointer(
-                2,
-                2,
-                gl::FLOAT,
-                gl::FALSE,
-                size_of::<Vertex>() as GLsizei,
-                std::mem::offset_of!(Vertex, 2) as *const _,
-            );
-            gl::EnableVertexAttribArray(2);
         }
 
         let ebo = Buffer::new(buffer::BufferType::Index);
@@ -134,6 +157,10 @@ impl Renderer {
         let texture = Texture2D::new_from_file("./textures/container.jpg")?;
         let texture_2 = Texture2D::new_from_file("./textures/awesomeface.png")?;
 
+        unsafe {
+            gl::Enable(gl::DEPTH_TEST);
+        }
+
         self.shader = shader_program;
         self.vbo = vbo;
         self.ebo = ebo;
@@ -146,22 +173,56 @@ impl Renderer {
 
     pub fn render(&mut self, args: RenderInfo) {
         self.shader.use_program();
+        self.shader.set_uniform_1i("texture1", 0);
         self.shader.set_uniform_1i("texture2", 1);
-        let scale = 1.0 + (args.time.as_secs_f32() * 0.5).sin() * 0.5;
-        let mat = glam::Mat4::from_scale_rotation_translation([scale, scale, scale].into(), glam::Quat::from_rotation_z(args.time.as_secs_f32()), [0.5, -0.5, 0.0].into());
-        self.shader.set_uniform_mat4("model", &mat);
+
+        let perspective = glam::Mat4::perspective_rh_gl(
+            45.0f32.to_radians(),
+            self.size.0 as f32 / self.size.1 as f32,
+            0.1,
+            100.0,
+        );
+        let view = glam::Mat4::from_translation((0.0, 0.0, -3.0).into());
+
         self.texture.bind_slot(0);
         self.texture_2.bind_slot(1);
+
+        let cube_positions = [
+            glam::Vec3::new(0.0, 0.0, 0.0),
+            glam::Vec3::new(2.0, 5.0, -15.0),
+            glam::Vec3::new(-1.5, -2.2, -2.5),
+            glam::Vec3::new(-3.8, -2.0, -12.3),
+            glam::Vec3::new(2.4, -0.4, -3.5),
+            glam::Vec3::new(-1.7, 3.0, -7.5),
+            glam::Vec3::new(1.3, -2.0, -2.5),
+            glam::Vec3::new(1.5, 2.0, -2.5),
+            glam::Vec3::new(1.5, 0.2, -1.5),
+            glam::Vec3::new(-1.3, 1.0, -1.5),
+        ];
+
         unsafe {
-            gl::Clear(gl::COLOR_BUFFER_BIT);
-            gl::DrawElements(gl::TRIANGLES, 6, gl::UNSIGNED_INT, std::ptr::null());
+            gl::Clear(gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT);
+        }
+
+        for (i, coords) in cube_positions.iter().enumerate() {
+            let angle = (20.0 * (i+1) as f32).to_radians();
+            let axis = glam::Vec3::new(1.0, 0.3, 0.5).normalize();
+            let quat = glam::Quat::from_axis_angle(axis, args.time.as_secs_f32() * angle);
+            let rotation = glam::Mat4::from_quat(quat);
+            let translation = glam::Mat4::from_translation(*coords);
+            let mat = perspective * view * translation * rotation;
+            self.shader.set_uniform_mat4("model", &mat);
+            unsafe {
+                gl::DrawArrays(gl::TRIANGLES, 0, 36);
+            }
         }
     }
 
-    pub fn resize(&self, width: u32, height: u32) {
+    pub fn resize(&mut self, width: u32, height: u32) {
         unsafe {
             gl::Viewport(0, 0, width as GLsizei, height as GLsizei);
         }
+        self.size = (width, height);
     }
 
     pub fn toggle_wireframe(&mut self) {

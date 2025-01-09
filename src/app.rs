@@ -133,7 +133,7 @@ impl ApplicationHandler for App {
                 self.render_and_swap();
             }
             WindowEvent::Resized(size) if size.height > 0 && size.width > 0 => {
-                let renderer = self.renderer.as_ref().unwrap();
+                let renderer = self.renderer.as_mut().unwrap();
                 renderer.resize(size.width, size.height);
             }
             WindowEvent::KeyboardInput {
