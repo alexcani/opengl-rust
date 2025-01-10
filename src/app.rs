@@ -19,6 +19,7 @@ use opengl_rust::input::InputManager;
 struct GfxData {
     surface: Surface<WindowSurface>,
     context: PossiblyCurrentContext,
+    cursor_grabbed: bool,
     // Must be dropped last
     window: Window,
 }
@@ -53,9 +54,9 @@ impl App {
 
     fn render_and_swap(&mut self) {
         if let Some(GfxData {
-            window: _,
             surface,
             context,
+            ..
         }) = self.gfx_data.as_ref()
         {
             let now = Instant::now();
@@ -67,6 +68,24 @@ impl App {
             renderer.render(&RenderInfo { dt, time, input_manager: &self.input_manager });
             self.input_manager.update();
             surface.swap_buffers(context).unwrap();
+        }
+    }
+
+    fn toggle_cursor_grab(&mut self) {
+        if let Some(GfxData { window, cursor_grabbed, ..}) = self.gfx_data.as_mut() {
+            if *cursor_grabbed {
+                window.set_cursor_visible(true);
+                window.set_cursor_grab(CursorGrabMode::None).unwrap();
+            } else {
+                let _ = window.set_cursor_grab(CursorGrabMode::Confined).or_else(|_| {
+                    window.set_cursor_grab(
+                        CursorGrabMode::Locked
+                    )
+                }).map(|_| {
+                    window.set_cursor_visible(false);
+                });  // it's okay if this fails, state is the same as before
+            }
+            *cursor_grabbed = !*cursor_grabbed;
         }
     }
 }
@@ -95,14 +114,6 @@ impl ApplicationHandler for App {
             .unwrap();
 
         let window = window.unwrap();
-        let _ = window.set_cursor_grab(CursorGrabMode::Confined).or_else(|_| {
-            window.set_cursor_grab(
-                CursorGrabMode::Locked
-            )
-        }).map(|_| {
-            window.set_cursor_visible(false);
-        });  // it's okay if this fails, state is the same as before
-
         let raw_window_handle = window.window_handle().ok().map(|wh| wh.as_raw());
         let context_attributes = ContextAttributesBuilder::new()
             .with_profile(GlProfile::Core)
@@ -124,11 +135,13 @@ impl ApplicationHandler for App {
         let context = context.make_current(&surface).unwrap();
 
         self.gfx_data = Some(GfxData {
-            window,
             surface,
             context,
+            cursor_grabbed: false,
+            window,
         });
         self.renderer = Some(Renderer::new(&config.display()));
+        self.toggle_cursor_grab();  // start with cursor grabbed
     }
 
     fn window_event(
@@ -155,6 +168,9 @@ impl ApplicationHandler for App {
                 self.input_manager.process_key_event(&event);
                 if self.input_manager.is_key_just_pressed(KeyCode::Escape) {
                     event_loop.exit();
+                }
+                if self.input_manager.is_key_just_pressed(KeyCode::AltLeft) {
+                    self.toggle_cursor_grab();
                 }
             }
             _ => {}
