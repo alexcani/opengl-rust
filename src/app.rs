@@ -11,7 +11,7 @@ use winit::event::{KeyEvent, WindowEvent};
 use winit::event_loop::ActiveEventLoop;
 use winit::keyboard::{KeyCode, PhysicalKey};
 use winit::raw_window_handle::HasWindowHandle;
-use winit::window::Window;
+use winit::window::{Window, CursorGrabMode};
 
 use opengl_rust::renderer::{Renderer, RenderInfo};
 
@@ -91,6 +91,14 @@ impl ApplicationHandler for App {
             .unwrap();
 
         let window = window.unwrap();
+        let _ = window.set_cursor_grab(CursorGrabMode::Confined).or_else(|_| {
+            window.set_cursor_grab(
+                CursorGrabMode::Locked
+            )
+        }).map(|_| {
+            window.set_cursor_visible(false);
+        });  // it's okay if this fails, state is the same as before
+
         let raw_window_handle = window.window_handle().ok().map(|wh| wh.as_raw());
         let context_attributes = ContextAttributesBuilder::new()
             .with_profile(GlProfile::Core)
