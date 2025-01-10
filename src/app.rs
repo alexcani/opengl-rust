@@ -7,13 +7,14 @@ use glutin::prelude::*;
 use glutin::surface::{Surface, WindowSurface};
 use glutin_winit::{DisplayBuilder, GlWindow};
 use winit::application::ApplicationHandler;
-use winit::event::{KeyEvent, WindowEvent};
+use winit::event::WindowEvent;
 use winit::event_loop::ActiveEventLoop;
-use winit::keyboard::{KeyCode, PhysicalKey};
+use winit::keyboard::KeyCode;
 use winit::raw_window_handle::HasWindowHandle;
 use winit::window::{Window, CursorGrabMode};
 
 use opengl_rust::renderer::{Renderer, RenderInfo};
+use opengl_rust::input::InputManager;
 
 struct GfxData {
     surface: Surface<WindowSurface>,
@@ -25,6 +26,7 @@ struct GfxData {
 pub struct App {
     gfx_data: Option<GfxData>,
     renderer: Option<Renderer>,
+    input_manager: InputManager,
     start_time: Instant,
     last_frame_time: Instant,
     exit_state: Result<(), Box<dyn Error>>,
@@ -35,6 +37,7 @@ impl App {
         App {
             gfx_data: None,
             renderer: None,
+            input_manager: InputManager::default(),
             start_time: Instant::now(),
             last_frame_time: Instant::now(),
             exit_state: Ok(()),
@@ -61,7 +64,8 @@ impl App {
             self.last_frame_time = now;
 
             let renderer = self.renderer.as_mut().unwrap();
-            renderer.render(RenderInfo { dt, time });
+            renderer.render(&RenderInfo { dt, time, input_manager: &self.input_manager });
+            self.input_manager.update();
             surface.swap_buffers(context).unwrap();
         }
     }
@@ -145,26 +149,12 @@ impl ApplicationHandler for App {
                 renderer.resize(size.width, size.height);
             }
             WindowEvent::KeyboardInput {
-                event:
-                    KeyEvent {
-                        repeat: false,
-                        physical_key: PhysicalKey::Code(key_code),
-                        state,
-                        ..
-                    },
+                event,
                 ..
             } => {
-                match key_code {
-                    KeyCode::Escape => {
-                        event_loop.exit();
-                    }
-                    KeyCode::KeyL => {
-                        if state == winit::event::ElementState::Pressed {
-                            let renderer = self.renderer.as_mut().unwrap();
-                            renderer.toggle_wireframe();
-                        }
-                    }
-                    _ => {}
+                self.input_manager.process_key_event(&event);
+                if self.input_manager.is_key_just_pressed(KeyCode::Escape) {
+                    event_loop.exit();
                 }
             }
             _ => {}

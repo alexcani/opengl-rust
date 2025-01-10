@@ -6,11 +6,13 @@ use std::ffi::CString;
 use std::time::Duration;
 
 use glutin::display::GlDisplay;
+use winit::keyboard::KeyCode;
 
 use buffer::Buffer;
 use shader::{Shader, ShaderProgram};
 use texture::Texture2D;
 use crate::entity::Camera;
+use crate::input::InputManager;
 
 use gl::types::*;
 
@@ -32,9 +34,10 @@ pub struct Renderer {
     camera: Camera,
 }
 
-pub struct RenderInfo {
+pub struct RenderInfo<'a> {
     pub dt: Duration,   // Time since the last frame
     pub time: Duration, // Time since the start of the application
+    pub input_manager: &'a InputManager,
 }
 
 impl Renderer {
@@ -174,21 +177,16 @@ impl Renderer {
         Ok(())
     }
 
-    pub fn render(&mut self, args: RenderInfo) {
+    pub fn render(&mut self, args: &RenderInfo) {
+        let input = args.input_manager;
+        if input.is_key_just_pressed(KeyCode::KeyL) {
+            self.toggle_wireframe();
+        }
         self.shader.use_program();
 
         // Textures
         self.shader.set_uniform_1i("texture1", 0);
         self.shader.set_uniform_1i("texture2", 1);
-
-        let perspective = glam::Mat4::perspective_rh_gl(
-            45.0f32.to_radians(),
-            self.size.0 as f32 / self.size.1 as f32,
-            0.1,
-            100.0,
-        );
-        let view = glam::Mat4::from_translation((0.0, 0.0, -3.0).into());
-
         self.texture.bind_slot(0);
         self.texture_2.bind_slot(1);
 
