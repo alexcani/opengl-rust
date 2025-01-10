@@ -10,6 +10,7 @@ use glutin::display::GlDisplay;
 use buffer::Buffer;
 use shader::{Shader, ShaderProgram};
 use texture::Texture2D;
+use crate::entity::Camera;
 
 use gl::types::*;
 
@@ -28,6 +29,7 @@ pub struct Renderer {
     texture: Texture2D,
     texture_2: Texture2D,
     size: (u32, u32),
+    camera: Camera,
 }
 
 pub struct RenderInfo {
@@ -51,6 +53,7 @@ impl Renderer {
             texture: Texture2D::new(),
             texture_2: Texture2D::new(),
             size: (1, 1),
+            camera: Camera::default(),
         };
 
         renderer.init().unwrap_or_else(|e| {
@@ -173,6 +176,8 @@ impl Renderer {
 
     pub fn render(&mut self, args: RenderInfo) {
         self.shader.use_program();
+
+        // Textures
         self.shader.set_uniform_1i("texture1", 0);
         self.shader.set_uniform_1i("texture2", 1);
 
@@ -186,6 +191,11 @@ impl Renderer {
 
         self.texture.bind_slot(0);
         self.texture_2.bind_slot(1);
+
+        // Camera
+        self.camera.update(args);
+        self.shader.set_uniform_mat4("projection", self.camera.projection_matrix());
+        self.shader.set_uniform_mat4("view", self.camera.view_matrix());
 
         let cube_positions = [
             glam::Vec3::new(0.0, 0.0, 0.0),
@@ -210,8 +220,8 @@ impl Renderer {
             let quat = glam::Quat::from_axis_angle(axis, args.time.as_secs_f32() * angle);
             let rotation = glam::Mat4::from_quat(quat);
             let translation = glam::Mat4::from_translation(*coords);
-            let mat = perspective * view * translation * rotation;
-            self.shader.set_uniform_mat4("model", &mat);
+            let model = translation * rotation;
+            self.shader.set_uniform_mat4("model", &model);
             unsafe {
                 gl::DrawArrays(gl::TRIANGLES, 0, 36);
             }
@@ -223,6 +233,7 @@ impl Renderer {
             gl::Viewport(0, 0, width as GLsizei, height as GLsizei);
         }
         self.size = (width, height);
+        self.camera.resize(width, height);
     }
 
     pub fn toggle_wireframe(&mut self) {
