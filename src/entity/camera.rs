@@ -1,4 +1,6 @@
 use glam::{Mat4, Vec3};
+use winit::keyboard::KeyCode;
+
 use crate::renderer::RenderInfo;
 
 pub struct Camera {
@@ -23,11 +25,21 @@ impl Camera {
     }
 
     pub fn update(&mut self, args: &RenderInfo) {
-        let radius = 10.0;
-        let cam_x = args.time.as_secs_f32().sin() * radius;
-        let cam_z = args.time.as_secs_f32().cos() * radius;
-        self.position = Vec3::new(cam_x, 0.0, cam_z);
-        self.view_matrix = Mat4::look_at_rh(self.position, Vec3::ZERO, self.up);
+        let input = &args.input_manager;
+        let speed = 2.5 * args.dt.as_secs_f32();
+        if input.is_key_pressed(KeyCode::KeyW) {
+            self.position += self.direction * speed;
+        }
+        if input.is_key_pressed(KeyCode::KeyS) {
+            self.position -= self.direction * speed;
+        }
+        if input.is_key_pressed(KeyCode::KeyA) {
+            self.position -= self.direction.cross(self.up).normalize() * speed;
+        }
+        if input.is_key_pressed(KeyCode::KeyD) {
+            self.position += self.direction.cross(self.up).normalize() * speed;
+        }
+        self.view_matrix = Mat4::look_to_rh(self.position, self.direction, self.up);
     }
 
     pub fn view_matrix(&self) -> &Mat4 {
