@@ -1,4 +1,5 @@
 use std::error::Error;
+use std::sync::Arc;
 use std::time::Instant;
 
 use glutin::context::{ContextAttributesBuilder, GlProfile, PossiblyCurrentContext};
@@ -20,6 +21,7 @@ struct GfxData {
     surface: Surface<WindowSurface>,
     context: PossiblyCurrentContext,
     cursor_grabbed: bool,
+    egui_glow: egui_glow::EguiGlow,
     // Must be dropped last
     window: Window,
 }
@@ -140,10 +142,21 @@ impl ApplicationHandler for App {
         };
         let context = context.make_current(&surface).unwrap();
 
+        // Initialize glow for egui
+        let glow_ctx = unsafe {
+            egui_glow::glow::Context::from_loader_function(|s| {
+                let s = std::ffi::CString::new(s).unwrap();
+                config.display().get_proc_address(s.as_c_str())
+            })
+        };
+        let egui_glow = egui_glow::EguiGlow::new(event_loop, Arc::new(glow_ctx), None, None, true);
+        egui_glow.egui_ctx.set_theme(egui::Theme::Dark);
+
         self.gfx_data = Some(GfxData {
             surface,
             context,
             cursor_grabbed: false,
+            egui_glow,
             window,
         });
         self.renderer = Some(Renderer::new(&config.display()));
@@ -156,6 +169,20 @@ impl ApplicationHandler for App {
         _: winit::window::WindowId,
         event: WindowEvent,
     ) {
+        let gfx_data = self.gfx_data.as_mut().unwrap();
+        let event_result = gfx_data.egui_glow.on_window_event(&gfx_data.window, &event);
+
+        if event_result.consumed {
+            return;
+        }
+        if event_result.repaint {
+            gfx_data.window.request_redraw();
+        }
+
+        if self.gui.quit {
+            event_loop.exit();
+        }
+
         match event {
             WindowEvent::CloseRequested => {
                 event_loop.exit();
