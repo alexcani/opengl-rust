@@ -94,23 +94,33 @@ impl App {
 
     fn toggle_cursor_grab(&mut self) {
         if let Some(GfxData {
-            window,
             cursor_grabbed,
             ..
         }) = self.gfx_data.as_mut()
         {
+            *cursor_grabbed = !*cursor_grabbed;
+        }
+        self.apply_cursor_grab();
+    }
+
+    fn apply_cursor_grab(&self) {
+        if let Some(GfxData {
+            window,
+            cursor_grabbed,
+            ..
+        }) = self.gfx_data.as_ref()
+        {
             if *cursor_grabbed {
-                window.set_cursor_visible(true);
-                window.set_cursor_grab(CursorGrabMode::None).unwrap();
-            } else {
                 let _ = window
                     .set_cursor_grab(CursorGrabMode::Confined)
                     .or_else(|_| window.set_cursor_grab(CursorGrabMode::Locked))
                     .map(|_| {
                         window.set_cursor_visible(false);
                     }); // it's okay if this fails, state is the same as before
+            } else {
+                window.set_cursor_visible(true);
+                window.set_cursor_grab(CursorGrabMode::None).unwrap();
             }
-            *cursor_grabbed = !*cursor_grabbed;
         }
     }
 }
@@ -177,7 +187,6 @@ impl ApplicationHandler for App {
             window,
         });
         self.renderer = Some(Renderer::new(&config.display()));
-        self.toggle_cursor_grab(); // start with cursor grabbed
     }
 
     fn window_event(
