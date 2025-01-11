@@ -9,6 +9,8 @@ pub struct Camera {
     up: Vec3,
     projection_matrix: Mat4,
     view_matrix: Mat4,
+    pitch: f32, // In degrees
+    yaw: f32,   // In degrees
 }
 
 impl Camera {
@@ -19,26 +21,16 @@ impl Camera {
             up: Vec3::Y,
             projection_matrix: Mat4::IDENTITY,
             view_matrix: Mat4::IDENTITY,
+            pitch: 0.0,
+            yaw: -90.0,
         };
         m.view_matrix = Mat4::look_to_rh(m.position, m.direction, m.up);
         m
     }
 
     pub fn update(&mut self, args: &RenderInfo) {
-        let input = &args.input_manager;
-        let speed = 2.5 * args.dt.as_secs_f32();
-        if input.is_key_pressed(KeyCode::KeyW) {
-            self.position += self.direction * speed;
-        }
-        if input.is_key_pressed(KeyCode::KeyS) {
-            self.position -= self.direction * speed;
-        }
-        if input.is_key_pressed(KeyCode::KeyA) {
-            self.position -= self.direction.cross(self.up).normalize() * speed;
-        }
-        if input.is_key_pressed(KeyCode::KeyD) {
-            self.position += self.direction.cross(self.up).normalize() * speed;
-        }
+        self.update_direction(args);
+        self.update_position(args);
         self.view_matrix = Mat4::look_to_rh(self.position, self.direction, self.up);
     }
 
@@ -57,6 +49,39 @@ impl Camera {
             0.1,
             100.0,
         );
+    }
+
+    fn update_direction(&mut self, args: &RenderInfo) {
+        let input = &args.input_manager;
+        let mouse_delta = input.mouse_delta();
+        let sensitivity = 0.2;
+        self.yaw += mouse_delta.0 as f32 * sensitivity;
+        self.pitch -= mouse_delta.1 as f32 * sensitivity;
+        self.pitch = self.pitch.clamp(-89.0, 89.0);
+
+        let direction = Vec3::new(
+            self.yaw.to_radians().cos() * self.pitch.to_radians().cos(),
+            self.pitch.to_radians().sin(),
+            self.yaw.to_radians().sin() * self.pitch.to_radians().cos(),
+        );
+        self.direction = direction.normalize();
+    }
+
+    fn update_position(&mut self, args: &RenderInfo) {
+        let input = &args.input_manager;
+        let speed = 4.0 * args.dt.as_secs_f32();
+        if input.is_key_pressed(KeyCode::KeyW) {
+            self.position += self.direction * speed;
+        }
+        if input.is_key_pressed(KeyCode::KeyS) {
+            self.position -= self.direction * speed;
+        }
+        if input.is_key_pressed(KeyCode::KeyA) {
+            self.position -= self.direction.cross(self.up).normalize() * speed;
+        }
+        if input.is_key_pressed(KeyCode::KeyD) {
+            self.position += self.direction.cross(self.up).normalize() * speed;
+        }
     }
 }
 

@@ -25,6 +25,7 @@ impl Texture2D {
         Ok(texture)
     }
 
+    #[allow(dead_code)]
     pub fn load_file(&self, file_path: &str) -> Result<(), String> {
         self.load_file_impl(file_path).map_err(|e| e.to_string())
     }

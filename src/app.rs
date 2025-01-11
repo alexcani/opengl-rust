@@ -7,14 +7,14 @@ use glutin::prelude::*;
 use glutin::surface::{Surface, WindowSurface};
 use glutin_winit::{DisplayBuilder, GlWindow};
 use winit::application::ApplicationHandler;
-use winit::event::WindowEvent;
+use winit::event::{DeviceEvent, WindowEvent};
 use winit::event_loop::ActiveEventLoop;
 use winit::keyboard::KeyCode;
 use winit::raw_window_handle::HasWindowHandle;
-use winit::window::{Window, CursorGrabMode};
+use winit::window::{CursorGrabMode, Window};
 
-use opengl_rust::renderer::{Renderer, RenderInfo};
 use opengl_rust::input::InputManager;
+use opengl_rust::renderer::{RenderInfo, Renderer};
 
 struct GfxData {
     surface: Surface<WindowSurface>,
@@ -54,9 +54,7 @@ impl App {
 
     fn render_and_swap(&mut self) {
         if let Some(GfxData {
-            surface,
-            context,
-            ..
+            surface, context, ..
         }) = self.gfx_data.as_ref()
         {
             let now = Instant::now();
@@ -65,25 +63,33 @@ impl App {
             self.last_frame_time = now;
 
             let renderer = self.renderer.as_mut().unwrap();
-            renderer.render(&RenderInfo { dt, time, input_manager: &self.input_manager });
+            renderer.render(&RenderInfo {
+                dt,
+                time,
+                input_manager: &self.input_manager,
+            });
             self.input_manager.update();
             surface.swap_buffers(context).unwrap();
         }
     }
 
     fn toggle_cursor_grab(&mut self) {
-        if let Some(GfxData { window, cursor_grabbed, ..}) = self.gfx_data.as_mut() {
+        if let Some(GfxData {
+            window,
+            cursor_grabbed,
+            ..
+        }) = self.gfx_data.as_mut()
+        {
             if *cursor_grabbed {
                 window.set_cursor_visible(true);
                 window.set_cursor_grab(CursorGrabMode::None).unwrap();
             } else {
-                let _ = window.set_cursor_grab(CursorGrabMode::Confined).or_else(|_| {
-                    window.set_cursor_grab(
-                        CursorGrabMode::Locked
-                    )
-                }).map(|_| {
-                    window.set_cursor_visible(false);
-                });  // it's okay if this fails, state is the same as before
+                let _ = window
+                    .set_cursor_grab(CursorGrabMode::Confined)
+                    .or_else(|_| window.set_cursor_grab(CursorGrabMode::Locked))
+                    .map(|_| {
+                        window.set_cursor_visible(false);
+                    }); // it's okay if this fails, state is the same as before
             }
             *cursor_grabbed = !*cursor_grabbed;
         }
@@ -141,7 +147,7 @@ impl ApplicationHandler for App {
             window,
         });
         self.renderer = Some(Renderer::new(&config.display()));
-        self.toggle_cursor_grab();  // start with cursor grabbed
+        self.toggle_cursor_grab(); // start with cursor grabbed
     }
 
     fn window_event(
@@ -161,10 +167,7 @@ impl ApplicationHandler for App {
                 let renderer = self.renderer.as_mut().unwrap();
                 renderer.resize(size.width, size.height);
             }
-            WindowEvent::KeyboardInput {
-                event,
-                ..
-            } => {
+            WindowEvent::KeyboardInput { event, .. } => {
                 self.input_manager.process_key_event(&event);
                 if self.input_manager.is_key_just_pressed(KeyCode::Escape) {
                     event_loop.exit();
@@ -173,7 +176,23 @@ impl ApplicationHandler for App {
                     self.toggle_cursor_grab();
                 }
             }
+            WindowEvent::CursorMoved { position, .. } => {
+                self.input_manager
+                    .process_mouse_position(position.x, position.y);
+            }
             _ => {}
+        }
+    }
+
+    fn device_event(
+        &mut self,
+        _event_loop: &ActiveEventLoop,
+        _device_id: winit::event::DeviceId,
+        event: winit::event::DeviceEvent,
+    ) {
+        if let DeviceEvent::MouseMotion { delta } = event {
+            self.input_manager
+                .process_mouse_delta(delta.0, delta.1);
         }
     }
 
