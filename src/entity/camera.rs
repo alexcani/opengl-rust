@@ -78,7 +78,7 @@ impl Camera {
 
     fn update_position(&mut self, args: &RenderInfo) {
         let input = &args.input_manager;
-        let speed = 4.0 * args.dt.as_secs_f32();
+        let speed = args.ui.camera_speed * args.dt.as_secs_f32();
         if input.is_key_pressed(KeyCode::KeyW) {
             self.position += self.direction * speed;
         }

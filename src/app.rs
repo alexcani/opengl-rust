@@ -16,6 +16,7 @@ use winit::window::{CursorGrabMode, Window};
 
 use opengl_rust::input::InputManager;
 use opengl_rust::renderer::{RenderInfo, Renderer};
+use opengl_rust::ui::Ui;
 
 struct GfxData {
     surface: Surface<WindowSurface>,
@@ -29,6 +30,7 @@ struct GfxData {
 pub struct App {
     gfx_data: Option<GfxData>,
     renderer: Option<Renderer>,
+    gui: Ui,
     input_manager: InputManager,
     start_time: Instant,
     last_frame_time: Instant,
@@ -40,6 +42,7 @@ impl App {
         App {
             gfx_data: None,
             renderer: None,
+            gui: Ui::default(),
             input_manager: InputManager::default(),
             start_time: Instant::now(),
             last_frame_time: Instant::now(),
@@ -56,22 +59,36 @@ impl App {
 
     fn render_and_swap(&mut self) {
         if let Some(GfxData {
-            surface, context, ..
-        }) = self.gfx_data.as_ref()
+            surface,
+            context,
+            egui_glow,
+            window,
+            ..
+        }) = self.gfx_data.as_mut()
         {
             let now = Instant::now();
             let dt = now.duration_since(self.last_frame_time);
             let time = now.duration_since(self.start_time);
             self.last_frame_time = now;
 
+            // Update the UI
+            egui_glow.run(window, |ctx| {
+                self.gui.run(ctx);
+            });
+
             let renderer = self.renderer.as_mut().unwrap();
             renderer.render(&RenderInfo {
                 dt,
                 time,
                 input_manager: &self.input_manager,
+                ui: &self.gui,
             });
-            self.input_manager.update();
+
+            // Render UI on top of everything
+            egui_glow.paint(window);
+
             surface.swap_buffers(context).unwrap();
+            self.input_manager.update();
         }
     }
 

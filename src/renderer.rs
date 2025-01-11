@@ -8,11 +8,12 @@ use std::time::Duration;
 use glutin::display::GlDisplay;
 use winit::keyboard::KeyCode;
 
+use crate::entity::Camera;
+use crate::input::InputManager;
+use crate::ui::Ui;
 use buffer::Buffer;
 use shader::{Shader, ShaderProgram};
 use texture::Texture2D;
-use crate::entity::Camera;
-use crate::input::InputManager;
 
 use gl::types::*;
 
@@ -38,6 +39,7 @@ pub struct RenderInfo<'a> {
     pub dt: Duration,   // Time since the last frame
     pub time: Duration, // Time since the start of the application
     pub input_manager: &'a InputManager,
+    pub ui: &'a Ui,
 }
 
 impl Renderer {
@@ -68,10 +70,6 @@ impl Renderer {
     }
 
     fn init(&mut self) -> Result<(), String> {
-        unsafe {
-            gl::ClearColor(0.6, 0.4, 0.8, 1.0);
-        }
-
         let vertices: [Vertex; 36] = [
             Vertex([-0.5, -0.5, -0.5], [0.0, 0.0]),
             Vertex([0.5, -0.5, -0.5], [1.0, 0.0]),
@@ -163,10 +161,6 @@ impl Renderer {
         let texture = Texture2D::new_from_file("./textures/container.jpg")?;
         let texture_2 = Texture2D::new_from_file("./textures/awesomeface.png")?;
 
-        unsafe {
-            gl::Enable(gl::DEPTH_TEST);
-        }
-
         self.shader = shader_program;
         self.vbo = vbo;
         self.ebo = ebo;
@@ -192,8 +186,10 @@ impl Renderer {
 
         // Camera
         self.camera.update(args);
-        self.shader.set_uniform_mat4("projection", self.camera.projection_matrix());
-        self.shader.set_uniform_mat4("view", self.camera.view_matrix());
+        self.shader
+            .set_uniform_mat4("projection", self.camera.projection_matrix());
+        self.shader
+            .set_uniform_mat4("view", self.camera.view_matrix());
 
         let cube_positions = [
             glam::Vec3::new(0.0, 0.0, 0.0),
@@ -209,11 +205,15 @@ impl Renderer {
         ];
 
         unsafe {
+            let color = args.ui.clear_color;
+            gl::ClearColor(color[0], color[1], color[2], 1.0);
             gl::Clear(gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT);
+            gl::Enable(gl::DEPTH_TEST);
+            gl::BindVertexArray(self.vao);
         }
 
         for (i, coords) in cube_positions.iter().enumerate() {
-            let angle = (20.0 * (i+1) as f32).to_radians();
+            let angle = (20.0 * (i + 1) as f32).to_radians();
             let axis = glam::Vec3::new(1.0, 0.3, 0.5).normalize();
             let quat = glam::Quat::from_axis_angle(axis, args.time.as_secs_f32() * angle);
             let rotation = glam::Mat4::from_quat(quat);
