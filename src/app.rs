@@ -7,7 +7,7 @@ use glutin::prelude::*;
 use glutin::surface::{Surface, WindowSurface};
 use glutin_winit::{DisplayBuilder, GlWindow};
 use winit::application::ApplicationHandler;
-use winit::event::{DeviceEvent, WindowEvent};
+use winit::event::{DeviceEvent, MouseScrollDelta, WindowEvent};
 use winit::event_loop::ActiveEventLoop;
 use winit::keyboard::KeyCode;
 use winit::raw_window_handle::HasWindowHandle;
@@ -180,6 +180,12 @@ impl ApplicationHandler for App {
                 self.input_manager
                     .process_mouse_position(position.x, position.y);
             }
+            WindowEvent::MouseWheel {
+                delta: MouseScrollDelta::LineDelta(_, y),
+                ..
+            } => {
+                self.input_manager.process_mouse_wheel_scroll(y);
+            }
             _ => {}
         }
     }
@@ -188,11 +194,10 @@ impl ApplicationHandler for App {
         &mut self,
         _event_loop: &ActiveEventLoop,
         _device_id: winit::event::DeviceId,
-        event: winit::event::DeviceEvent,
+        event: DeviceEvent,
     ) {
         if let DeviceEvent::MouseMotion { delta } = event {
-            self.input_manager
-                .process_mouse_delta(delta.0, delta.1);
+            self.input_manager.process_mouse_delta(delta.0, delta.1);
         }
     }
 

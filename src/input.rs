@@ -9,7 +9,7 @@ pub struct InputManager {
     just_released: HashMap<KeyCode, bool>,
     mouse_position: (f64, f64),  // Absolute position
     mouse_delta: (f64, f64),  // Relative position since last update call
-    mouse_wheel: f64,
+    mouse_wheel_delta: f32, // Scroll amount since last update call
 }
 
 impl InputManager {
@@ -20,7 +20,7 @@ impl InputManager {
             just_released: HashMap::new(),
             mouse_position: (0.0, 0.0),
             mouse_delta: (0.0, 0.0),
-            mouse_wheel: 0.0,
+            mouse_wheel_delta: 0.0,
         }
     }
 
@@ -28,6 +28,7 @@ impl InputManager {
         self.just_pressed.clear();
         self.just_released.clear();
         self.mouse_delta = (0.0, 0.0);
+        self.mouse_wheel_delta = 0.0;
     }
 
     pub fn process_key_event(&mut self, event: &KeyEvent) {
@@ -61,6 +62,10 @@ impl InputManager {
         self.mouse_delta = (dx, dy);
     }
 
+    pub fn process_mouse_wheel_scroll(&mut self, dy: f32) {
+        self.mouse_wheel_delta += dy;
+    }
+
     pub fn is_key_pressed(&self, key: KeyCode) -> bool {
         self.keys.get(&key).copied().unwrap_or(false)
     }
@@ -79,6 +84,10 @@ impl InputManager {
 
     pub fn mouse_delta(&self) -> (f64, f64) {
         self.mouse_delta
+    }
+
+    pub fn mouse_wheel_delta(&self) -> f32 {
+        self.mouse_wheel_delta
     }
 }
 

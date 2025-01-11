@@ -11,6 +11,12 @@ pub struct Camera {
     view_matrix: Mat4,
     pitch: f32, // In degrees
     yaw: f32,   // In degrees
+    // Perspective parameters
+    width: u32,
+    height: u32,
+    fov: f32,
+    near: f32,
+    far: f32,
 }
 
 impl Camera {
@@ -23,6 +29,11 @@ impl Camera {
             view_matrix: Mat4::IDENTITY,
             pitch: 0.0,
             yaw: -90.0,
+            width: 800,
+            height: 600,
+            fov: 45.0,
+            near: 0.1,
+            far: 100.0,
         };
         m.view_matrix = Mat4::look_to_rh(m.position, m.direction, m.up);
         m
@@ -32,6 +43,8 @@ impl Camera {
         self.update_direction(args);
         self.update_position(args);
         self.view_matrix = Mat4::look_to_rh(self.position, self.direction, self.up);
+
+        self.update_projection(args);
     }
 
     pub fn view_matrix(&self) -> &Mat4 {
@@ -43,12 +56,8 @@ impl Camera {
     }
 
     pub fn resize(&mut self, width: u32, height: u32) {
-        self.projection_matrix = Mat4::perspective_rh_gl(
-            45.0f32.to_radians(),
-            width as f32 / height as f32,
-            0.1,
-            100.0,
-        );
+        self.width = width;
+        self.height = height;
     }
 
     fn update_direction(&mut self, args: &RenderInfo) {
@@ -82,6 +91,14 @@ impl Camera {
         if input.is_key_pressed(KeyCode::KeyD) {
             self.position += self.direction.cross(self.up).normalize() * speed;
         }
+    }
+
+    fn update_projection(&mut self, args: &RenderInfo) {
+        let input = args.input_manager;
+        let fov = self.fov - input.mouse_wheel_delta();
+        self.fov = fov.clamp(1.0, 45.0);
+        let aspect = self.width as f32 / self.height as f32;
+        self.projection_matrix = Mat4::perspective_rh_gl(self.fov.to_radians(), aspect, self.near, self.far);
     }
 }
 
