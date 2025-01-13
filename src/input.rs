@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use winit::keyboard::{KeyCode, PhysicalKey};
-use winit::event::KeyEvent;
+use winit::event::{KeyEvent, MouseButton, ElementState};
 
 pub struct InputManager {
     keys: HashMap<KeyCode, bool>,
@@ -10,6 +10,9 @@ pub struct InputManager {
     mouse_position: (f64, f64),  // Absolute position
     mouse_delta: (f64, f64),  // Relative position since last update call
     mouse_wheel_delta: f32, // Scroll amount since last update call
+    mouse_buttons: HashMap<MouseButton, bool>,
+    just_pressed_mouse_buttons: HashMap<MouseButton, bool>,
+    just_released_mouse_buttons: HashMap<MouseButton, bool>,
 }
 
 impl InputManager {
@@ -21,6 +24,9 @@ impl InputManager {
             mouse_position: (0.0, 0.0),
             mouse_delta: (0.0, 0.0),
             mouse_wheel_delta: 0.0,
+            mouse_buttons: HashMap::new(),
+            just_pressed_mouse_buttons: HashMap::new(),
+            just_released_mouse_buttons: HashMap::new(),
         }
     }
 
@@ -29,6 +35,8 @@ impl InputManager {
         self.just_released.clear();
         self.mouse_delta = (0.0, 0.0);
         self.mouse_wheel_delta = 0.0;
+        self.just_pressed_mouse_buttons.clear();
+        self.just_released_mouse_buttons.clear();
     }
 
     pub fn process_key_event(&mut self, event: &KeyEvent) {
@@ -66,6 +74,20 @@ impl InputManager {
         self.mouse_wheel_delta += dy;
     }
 
+    pub fn process_mouse_button(&mut self, button: MouseButton, state: ElementState) {
+        match state {
+            ElementState::Pressed => {
+                self.mouse_buttons.insert(button, true);
+                self.just_pressed_mouse_buttons.insert(button, true);
+            }
+            ElementState::Released => {
+                self.mouse_buttons.insert(button, false);
+                self.just_released_mouse_buttons.insert(button, true);
+            }
+        }
+
+    }
+
     pub fn is_key_pressed(&self, key: KeyCode) -> bool {
         self.keys.get(&key).copied().unwrap_or(false)
     }
@@ -76,6 +98,18 @@ impl InputManager {
 
     pub fn is_key_just_released(&self, key: KeyCode) -> bool {
         self.just_released.get(&key).copied().unwrap_or(false)
+    }
+
+    pub fn is_mouse_button_pressed(&self, button: MouseButton) -> bool {
+        self.mouse_buttons.get(&button).copied().unwrap_or(false)
+    }
+
+    pub fn is_mouse_button_just_pressed(&self, button: MouseButton) -> bool {
+        self.just_pressed_mouse_buttons.get(&button).copied().unwrap_or(false)
+    }
+
+    pub fn is_mouse_button_just_released(&self, button: MouseButton) -> bool {
+        self.just_released_mouse_buttons.get(&button).copied().unwrap_or(false)
     }
 
     pub fn mouse_position(&self) -> (f64, f64) {

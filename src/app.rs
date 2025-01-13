@@ -8,7 +8,7 @@ use glutin::prelude::*;
 use glutin::surface::{Surface, WindowSurface};
 use glutin_winit::{DisplayBuilder, GlWindow};
 use winit::application::ApplicationHandler;
-use winit::event::{DeviceEvent, MouseScrollDelta, WindowEvent};
+use winit::event::{DeviceEvent, MouseButton, MouseScrollDelta, WindowEvent};
 use winit::event_loop::ActiveEventLoop;
 use winit::keyboard::KeyCode;
 use winit::raw_window_handle::HasWindowHandle;
@@ -238,6 +238,16 @@ impl ApplicationHandler for App {
                 ..
             } => {
                 self.input_manager.process_mouse_wheel_scroll(y);
+            },
+            WindowEvent::MouseInput { state, button, .. } => {
+                self.input_manager.process_mouse_button(button, state);
+                if self.input_manager.is_mouse_button_just_pressed(MouseButton::Right) {
+                    gfx_data.cursor_grabbed = true;
+                    self.apply_cursor_grab();
+                } else if self.input_manager.is_mouse_button_just_released(MouseButton::Right) {
+                    gfx_data.cursor_grabbed = false;
+                    self.apply_cursor_grab();
+                }
             }
             _ => {}
         }

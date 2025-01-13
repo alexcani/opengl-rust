@@ -62,8 +62,11 @@ impl Camera {
 
     fn update_direction(&mut self, args: &RenderInfo) {
         let input = &args.input_manager;
+        if !input.is_mouse_button_pressed(winit::event::MouseButton::Right) {
+            return;
+        }
         let mouse_delta = input.mouse_delta();
-        let sensitivity = 0.2;
+        let sensitivity = args.ui.camera_sensitivity;
         self.yaw += mouse_delta.0 as f32 * sensitivity;
         self.pitch -= mouse_delta.1 as f32 * sensitivity;
         self.pitch = self.pitch.clamp(-89.0, 89.0);
@@ -90,6 +93,12 @@ impl Camera {
         }
         if input.is_key_pressed(KeyCode::KeyD) {
             self.position += self.direction.cross(self.up).normalize() * speed;
+        }
+        if input.is_key_pressed(KeyCode::KeyR) {
+            self.position += self.up * speed;
+        }
+        if input.is_key_pressed(KeyCode::KeyF) {
+            self.position -= self.up * speed;
         }
     }
 
