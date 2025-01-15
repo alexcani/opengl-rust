@@ -1,3 +1,4 @@
+pub mod mesh;
 mod buffer;
 mod shader;
 mod texture;
