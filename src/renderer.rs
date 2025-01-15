@@ -22,6 +22,7 @@ use gl::types::*;
 pub struct Renderer {
     wireframe: bool,
     shader: ShaderProgram,
+    light_shader: ShaderProgram,
     texture: Texture2D,
     texture_2: Texture2D,
     size: (u32, u32),
@@ -46,6 +47,7 @@ impl Renderer {
         let mut renderer = Renderer {
             wireframe: false,
             shader: ShaderProgram::new(),
+            light_shader: ShaderProgram::new(),
             texture: Texture2D::new(),
             texture_2: Texture2D::new(),
             size: (1, 1),
@@ -135,6 +137,17 @@ impl Renderer {
         self.shader.attach_shader(&vertex_shader);
         self.shader.attach_shader(&fragment_shader);
         self.shader.link()?;
+
+        // Shader for rendering light sources
+        let vertex_shader =
+            Shader::from_file(shader::ShaderType::Vertex, "./shaders/light_source.vs")?;
+        vertex_shader.compile()?;
+        let fragment_shader =
+            Shader::from_file(shader::ShaderType::Fragment, "./shaders/light_source.fs")?;
+        fragment_shader.compile()?;
+        self.light_shader.attach_shader(&vertex_shader);
+        self.light_shader.attach_shader(&fragment_shader);
+        self.light_shader.link()?;
 
         self.texture.load_file("./textures/container.jpg")?;
         self.texture_2.load_file("./textures/awesomeface.png")?;
