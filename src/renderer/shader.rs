@@ -152,6 +152,20 @@ impl ShaderProgram {
         }
     }
 
+    #[allow(dead_code)]
+    pub fn set_uniform_3fv(&mut self, name: &str, x: &[f32; 3]) {
+        unsafe {
+            gl::Uniform3fv(self.get_uniform_location(name), 1, x.as_ptr());
+        }
+    }
+
+    #[allow(dead_code)]
+    pub fn set_uniform_3f(&mut self, name: &str, x: f32, y: f32, z: f32) {
+        unsafe {
+            gl::Uniform3f(self.get_uniform_location(name), x, y, z);
+        }
+    }
+
     fn get_uniform_location(&mut self, name: &str) -> i32 {
         if let Some(location) = self.uniforms.get(name) {
             return *location;

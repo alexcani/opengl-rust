@@ -1,6 +1,6 @@
+mod buffer;
 pub mod mesh;
 pub mod shader;
-mod buffer;
 mod texture;
 
 use std::ffi::CString;
@@ -28,6 +28,8 @@ pub struct Renderer {
     size: (u32, u32),
     camera: Camera,
     cubes: Vec<Object>,
+    lights: Vec<Object>,
+    floor: Object,
 }
 
 pub struct RenderInfo<'a> {
@@ -53,6 +55,8 @@ impl Renderer {
             size: (1, 1),
             camera: Camera::default(),
             cubes: Vec::new(),
+            lights: Vec::new(),
+            floor: Object::new(Rc::new(Mesh::new())),
         };
 
         renderer.init().unwrap_or_else(|e| {
@@ -126,6 +130,19 @@ impl Renderer {
             self.cubes.push(cube);
         }
 
+        // Floor
+        let mut floor = Object::new(Rc::clone(&cube_mesh));
+        floor.transform.position = glam::vec3(0.0, -3.0, 0.0);
+        floor.transform.scale = glam::Vec3::new(50.0, 0.1, 50.0);
+        self.floor = floor;
+
+        // Light sources
+        let mut light = Object::new(Rc::clone(&cube_mesh));
+        light.transform.position = glam::vec3(1.2, 1.0, 2.0);
+        light.transform.scale = glam::Vec3::splat(0.2);
+        self.lights.push(light);
+
+        // Shader for rendering objects
         let vertex_shader =
             Shader::from_file(shader::ShaderType::Vertex, "./shaders/basic_vertex.vs")?;
         vertex_shader.compile()?;
@@ -160,7 +177,20 @@ impl Renderer {
         if input.is_key_just_pressed(KeyCode::KeyL) {
             self.toggle_wireframe();
         }
+
+        let color = args.ui.clear_color;
+        unsafe {
+            gl::ClearColor(color[0], color[1], color[2], 1.0);
+            gl::Clear(gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT);
+            gl::Enable(gl::DEPTH_TEST);
+        }
+
+        self.camera.update(args);
+
+        // Render objects
         self.shader.use_program();
+        self.shader.set_uniform_3fv("lightColor", &args.ui.light_color);
+        self.shader.set_uniform_1i("isFloor", gl::FALSE.into());
 
         // Textures
         self.shader.set_uniform_1i("texture1", 0);
@@ -168,19 +198,10 @@ impl Renderer {
         self.texture.bind_slot(0);
         self.texture_2.bind_slot(1);
 
-        // Camera
-        self.camera.update(args);
         self.shader
             .set_uniform_mat4("projection", self.camera.projection_matrix());
         self.shader
             .set_uniform_mat4("view", self.camera.view_matrix());
-
-        unsafe {
-            let color = args.ui.clear_color;
-            gl::ClearColor(color[0], color[1], color[2], 1.0);
-            gl::Clear(gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT);
-            gl::Enable(gl::DEPTH_TEST);
-        }
 
         for (i, cube) in self.cubes.iter_mut().enumerate() {
             let angle = (20.0 * (i + 1) as f32).to_radians();
@@ -188,6 +209,23 @@ impl Renderer {
             let quat = glam::Quat::from_axis_angle(axis, args.time.as_secs_f32() * angle);
             cube.transform.rotation = quat;
             cube.render(&mut self.shader);
+        }
+
+        // Floor
+        self.shader.set_uniform_1i("isFloor", gl::TRUE.into());
+        self.shader.set_uniform_3f("floorColor", 0.5, 0.5, 0.5);
+        self.floor.render(&mut self.shader);
+
+        // Render light sources
+        self.light_shader.use_program();
+        self.light_shader.set_uniform_3fv("lightColor", &args.ui.light_color);
+        self.light_shader
+            .set_uniform_mat4("projection", self.camera.projection_matrix());
+        self.light_shader
+            .set_uniform_mat4("view", self.camera.view_matrix());
+
+        for light in &self.lights {
+            light.render(&mut self.light_shader);
         }
     }
 

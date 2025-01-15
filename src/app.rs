@@ -131,7 +131,7 @@ impl ApplicationHandler for App {
             panic!("Resumed called twice");
         }
 
-        let attributes = Window::default_attributes().with_title("Triangle");
+        let attributes = Window::default_attributes().with_title("OpenGL");
         let template_builder = glutin::config::ConfigTemplateBuilder::new();
         let (window, config) = DisplayBuilder::new()
             .with_window_attributes(Some(attributes))
