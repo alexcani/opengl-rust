@@ -1,39 +1,32 @@
 pub mod mesh;
+pub mod shader;
 mod buffer;
-mod shader;
 mod texture;
 
 use std::ffi::CString;
+use std::rc::Rc;
 use std::time::Duration;
 
 use glutin::display::GlDisplay;
 use winit::keyboard::KeyCode;
 
-use crate::entity::Camera;
+use crate::entity::{Camera, Object};
 use crate::input::InputManager;
 use crate::ui::Ui;
-use buffer::Buffer;
+use mesh::{Mesh, Vertex};
 use shader::{Shader, ShaderProgram};
 use texture::Texture2D;
 
 use gl::types::*;
 
-#[repr(C)]
-struct Vertex(
-    [f32; 3], // Position
-    [f32; 2], // TexCoords
-);
-
 pub struct Renderer {
     wireframe: bool,
     shader: ShaderProgram,
-    vbo: Buffer,
-    ebo: Buffer,
-    vao: GLuint,
     texture: Texture2D,
     texture_2: Texture2D,
     size: (u32, u32),
     camera: Camera,
+    cubes: Vec<Object>,
 }
 
 pub struct RenderInfo<'a> {
@@ -53,13 +46,11 @@ impl Renderer {
         let mut renderer = Renderer {
             wireframe: false,
             shader: ShaderProgram::new(),
-            vbo: Buffer::new(buffer::BufferType::Vertex),
-            ebo: Buffer::new(buffer::BufferType::Index),
-            vao: 0,
             texture: Texture2D::new(),
             texture_2: Texture2D::new(),
             size: (1, 1),
             camera: Camera::default(),
+            cubes: Vec::new(),
         };
 
         renderer.init().unwrap_or_else(|e| {
@@ -71,7 +62,7 @@ impl Renderer {
     }
 
     fn init(&mut self) -> Result<(), String> {
-        let vertices: [Vertex; 36] = [
+        let cube_vertices: [Vertex; 36] = [
             Vertex([-0.5, -0.5, -0.5], [0.0, 0.0]),
             Vertex([0.5, -0.5, -0.5], [1.0, 0.0]),
             Vertex([0.5, 0.5, -0.5], [1.0, 1.0]),
@@ -110,41 +101,28 @@ impl Renderer {
             Vertex([-0.5, 0.5, -0.5], [0.0, 1.0]),
         ];
 
-        let indices: [u32; 6] = [0, 1, 3, 1, 2, 3];
+        let mut cube_mesh = Mesh::new();
+        cube_mesh.init(&cube_vertices, None);
+        let cube_mesh = Rc::new(cube_mesh);
 
-        let mut vao = 0;
-        unsafe {
-            gl::GenVertexArrays(1, &mut vao);
-            gl::BindVertexArray(vao);
+        let cube_positions = [
+            glam::Vec3::new(0.0, 0.0, 0.0),
+            glam::Vec3::new(2.0, 5.0, -15.0),
+            glam::Vec3::new(-1.5, -2.2, -2.5),
+            glam::Vec3::new(-3.8, -2.0, -12.3),
+            glam::Vec3::new(2.4, -0.4, -3.5),
+            glam::Vec3::new(-1.7, 3.0, -7.5),
+            glam::Vec3::new(1.3, -2.0, -2.5),
+            glam::Vec3::new(1.5, 2.0, -2.5),
+            glam::Vec3::new(1.5, 0.2, -1.5),
+            glam::Vec3::new(-1.3, 1.0, -1.5),
+        ];
+
+        for position in cube_positions {
+            let mut cube = Object::new(Rc::clone(&cube_mesh));
+            cube.transform.position = position;
+            self.cubes.push(cube);
         }
-
-        let vbo = Buffer::new(buffer::BufferType::Vertex);
-        vbo.upload_data(&vertices);
-
-        unsafe {
-            gl::VertexAttribPointer(
-                0,
-                3,
-                gl::FLOAT,
-                gl::FALSE,
-                size_of::<Vertex>() as GLsizei,
-                std::ptr::null(),
-            );
-            gl::EnableVertexAttribArray(0);
-
-            gl::VertexAttribPointer(
-                1,
-                2,
-                gl::FLOAT,
-                gl::FALSE,
-                size_of::<Vertex>() as GLsizei,
-                std::mem::offset_of!(Vertex, 1) as *const _,
-            );
-            gl::EnableVertexAttribArray(1);
-        }
-
-        let ebo = Buffer::new(buffer::BufferType::Index);
-        ebo.upload_data(&indices);
 
         let vertex_shader =
             Shader::from_file(shader::ShaderType::Vertex, "./shaders/basic_vertex.vs")?;
@@ -154,20 +132,12 @@ impl Renderer {
             Shader::from_file(shader::ShaderType::Fragment, "./shaders/basic_fragment.fs")?;
         fragment_shader.compile()?;
 
-        let shader_program = ShaderProgram::new();
-        shader_program.attach_shader(&vertex_shader);
-        shader_program.attach_shader(&fragment_shader);
-        shader_program.link()?;
+        self.shader.attach_shader(&vertex_shader);
+        self.shader.attach_shader(&fragment_shader);
+        self.shader.link()?;
 
-        let texture = Texture2D::new_from_file("./textures/container.jpg")?;
-        let texture_2 = Texture2D::new_from_file("./textures/awesomeface.png")?;
-
-        self.shader = shader_program;
-        self.vbo = vbo;
-        self.ebo = ebo;
-        self.vao = vao;
-        self.texture = texture;
-        self.texture_2 = texture_2;
+        self.texture.load_file("./textures/container.jpg")?;
+        self.texture_2.load_file("./textures/awesomeface.png")?;
 
         Ok(())
     }
@@ -192,38 +162,19 @@ impl Renderer {
         self.shader
             .set_uniform_mat4("view", self.camera.view_matrix());
 
-        let cube_positions = [
-            glam::Vec3::new(0.0, 0.0, 0.0),
-            glam::Vec3::new(2.0, 5.0, -15.0),
-            glam::Vec3::new(-1.5, -2.2, -2.5),
-            glam::Vec3::new(-3.8, -2.0, -12.3),
-            glam::Vec3::new(2.4, -0.4, -3.5),
-            glam::Vec3::new(-1.7, 3.0, -7.5),
-            glam::Vec3::new(1.3, -2.0, -2.5),
-            glam::Vec3::new(1.5, 2.0, -2.5),
-            glam::Vec3::new(1.5, 0.2, -1.5),
-            glam::Vec3::new(-1.3, 1.0, -1.5),
-        ];
-
         unsafe {
             let color = args.ui.clear_color;
             gl::ClearColor(color[0], color[1], color[2], 1.0);
             gl::Clear(gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT);
             gl::Enable(gl::DEPTH_TEST);
-            gl::BindVertexArray(self.vao);
         }
 
-        for (i, coords) in cube_positions.iter().enumerate() {
+        for (i, cube) in self.cubes.iter_mut().enumerate() {
             let angle = (20.0 * (i + 1) as f32).to_radians();
             let axis = glam::Vec3::new(1.0, 0.3, 0.5).normalize();
             let quat = glam::Quat::from_axis_angle(axis, args.time.as_secs_f32() * angle);
-            let rotation = glam::Mat4::from_quat(quat);
-            let translation = glam::Mat4::from_translation(*coords);
-            let model = translation * rotation;
-            self.shader.set_uniform_mat4("model", &model);
-            unsafe {
-                gl::DrawArrays(gl::TRIANGLES, 0, 36);
-            }
+            cube.transform.rotation = quat;
+            cube.render(&mut self.shader);
         }
     }
 
