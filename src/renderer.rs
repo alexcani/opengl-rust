@@ -191,6 +191,13 @@ impl Renderer {
         self.shader.use_program();
         self.shader
             .set_uniform_3fv("lightColor", &args.ui.light_color);
+        // Consider the first light as the light source for now
+        let x = self.lights[0].transform.position;
+        self.shader.set_uniform_3fv("lightPos", &x.into());
+        self.shader.set_uniform_3fv("viewPos", &self.camera.position().into());
+        self.shader.set_uniform_1i("shininess", args.ui.shininess);
+
+
         self.shader.set_uniform_1i("isFloor", gl::FALSE.into());
 
         // Textures
@@ -205,7 +212,7 @@ impl Renderer {
             .set_uniform_mat4("view", self.camera.view_matrix());
 
         for (i, cube) in self.cubes.iter_mut().enumerate() {
-            let angle = (20.0 * (i + 1) as f32).to_radians();
+            let angle = (20.0 * i as f32).to_radians();
             let axis = glam::Vec3::new(1.0, 0.3, 0.5).normalize();
             let quat = glam::Quat::from_axis_angle(axis, args.time.as_secs_f32() * angle);
             cube.transform.rotation = quat;

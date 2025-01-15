@@ -47,6 +47,10 @@ impl Camera {
         self.update_projection(args);
     }
 
+    pub fn position(&self) -> Vec3 {
+        self.position
+    }
+
     pub fn view_matrix(&self) -> &Mat4 {
         &self.view_matrix
     }
