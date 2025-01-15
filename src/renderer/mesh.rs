@@ -5,6 +5,7 @@ use gl::types::*;
 #[repr(C)]
 pub struct Vertex(
     pub [f32; 3], // position
+    pub [f32; 3], // normal vectors
     pub [f32; 2], // texture coordinates
 );
 
@@ -58,13 +59,23 @@ impl Mesh {
 
             gl::VertexAttribPointer(
                 1,
+                3,
+                gl::FLOAT,
+                gl::FALSE,
+                std::mem::size_of::<Vertex>() as GLsizei,
+                std::mem::offset_of!(Vertex, 1) as *const _,
+            );
+            gl::EnableVertexAttribArray(1);
+
+            gl::VertexAttribPointer(
+                2,
                 2,
                 gl::FLOAT,
                 gl::FALSE,
                 std::mem::size_of::<Vertex>() as GLsizei,
-                (3 * std::mem::size_of::<f32>()) as *const _,
+                std::mem::offset_of!(Vertex, 2) as *const _,
             );
-            gl::EnableVertexAttribArray(1);
+            gl::EnableVertexAttribArray(2);
         }
 
         unsafe {
