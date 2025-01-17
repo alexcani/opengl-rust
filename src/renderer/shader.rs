@@ -152,7 +152,12 @@ impl ShaderProgram {
         }
     }
 
-    #[allow(dead_code)]
+    pub fn set_uniform_mat3(&mut self, name: &str, mat: &glam::Mat3) {
+        unsafe {
+            gl::UniformMatrix3fv(self.get_uniform_location(name), 1, gl::FALSE, mat.to_cols_array().as_ptr());
+        }
+    }
+
     pub fn set_uniform_3fv(&mut self, name: &str, x: &[f32; 3]) {
         unsafe {
             gl::Uniform3fv(self.get_uniform_location(name), 1, x.as_ptr());
@@ -179,8 +184,14 @@ impl ShaderProgram {
             panic!("Uniform '{}' not found", name);
         }
 
-        self.uniforms.insert(name.into(), location);
-        location
+    pub fn contains_uniform(&self, name: &str) -> bool {
+        self.uniforms.contains_key(name)
+    }
+}
+
+impl Default for ShaderProgram {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
