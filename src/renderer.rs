@@ -48,8 +48,8 @@ impl Renderer {
 
         let mut renderer = Renderer {
             wireframe: false,
-            shader: ShaderProgram::new(),
-            light_shader: ShaderProgram::new(),
+            shader: ShaderProgram::default(),
+            light_shader: ShaderProgram::default(),
             texture: Texture2D::new(),
             texture_2: Texture2D::new(),
             size: (1, 1),

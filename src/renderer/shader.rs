@@ -77,6 +77,7 @@ pub struct ShaderProgram {
     uniforms: HashMap<Box<str>, GLint>,
 }
 
+#[allow(dead_code)]
 impl ShaderProgram {
     pub fn new() -> Self {
         let id = unsafe {
@@ -91,7 +92,7 @@ impl ShaderProgram {
         }
     }
 
-    pub fn link(&self) -> Result<(), String> {
+    pub fn link(&mut self) -> Result<(), String> {
         unsafe {
             gl::LinkProgram(self.id);
         }
@@ -115,6 +116,8 @@ impl ShaderProgram {
             return Err(String::from_utf8(buffer).unwrap());
         }
 
+        self.populate_uniform_indices();
+
         Ok(())
     }
 
@@ -124,28 +127,24 @@ impl ShaderProgram {
         }
     }
 
-    #[allow(dead_code)]
     pub fn set_uniform_4f(&mut self, name: &str, x: f32, y: f32, z: f32, w: f32) {
         unsafe {
             gl::Uniform4f(self.get_uniform_location(name), x, y, z, w);
         }
     }
 
-    #[allow(dead_code)]
     pub fn set_uniform_1f(&mut self, name: &str, x: f32) {
         unsafe {
             gl::Uniform1f(self.get_uniform_location(name), x);
         }
     }
 
-    #[allow(dead_code)]
     pub fn set_uniform_1i(&mut self, name: &str, x: i32) {
         unsafe {
             gl::Uniform1i(self.get_uniform_location(name), x);
         }
     }
 
-    #[allow(dead_code)]
     pub fn set_uniform_mat4(&mut self, name: &str, mat: &glam::Mat4) {
         unsafe {
             gl::UniformMatrix4fv(self.get_uniform_location(name), 1, gl::FALSE, mat.to_cols_array().as_ptr());
@@ -164,7 +163,6 @@ impl ShaderProgram {
         }
     }
 
-    #[allow(dead_code)]
     pub fn set_uniform_3f(&mut self, name: &str, x: f32, y: f32, z: f32) {
         unsafe {
             gl::Uniform3f(self.get_uniform_location(name), x, y, z);
@@ -176,13 +174,29 @@ impl ShaderProgram {
             return *location;
         }
 
-        let c_name = std::ffi::CString::new(name).unwrap();
-        let location = unsafe {
-            gl::GetUniformLocation(self.id, c_name.as_ptr())
-        };
-        if location == -1 {
-            panic!("Uniform '{}' not found", name);
+        panic!("Uniform '{}' not found", name);
+    }
+
+    fn populate_uniform_indices(&mut self) {
+        let mut max_length = 0;
+        let mut num_active_uniforms = 0;
+        unsafe {
+            gl::GetProgramiv(self.id, gl::ACTIVE_UNIFORM_MAX_LENGTH, &mut max_length);
+            gl::GetProgramiv(self.id, gl::ACTIVE_UNIFORMS, &mut num_active_uniforms);
         }
+
+        for i in 0..num_active_uniforms {
+            let mut buffer = vec![0; max_length as usize];
+            let mut written_length = 0;
+            let mut size = 0;
+            let mut type_ = 0;
+            unsafe {
+                gl::GetActiveUniform(self.id, i as u32, max_length, &mut written_length, &mut size, &mut type_, buffer.as_mut_ptr() as *mut GLchar);
+            }
+            let uniform_name = String::from_utf8(buffer[0..written_length as usize].to_vec()).unwrap();
+            self.uniforms.insert(uniform_name.into_boxed_str(), i);
+        }
+    }
 
     pub fn contains_uniform(&self, name: &str) -> bool {
         self.uniforms.contains_key(name)
