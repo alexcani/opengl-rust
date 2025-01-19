@@ -31,6 +31,7 @@ pub struct App {
     gfx_data: Option<GfxData>,
     renderer: Option<Renderer>,
     gui: Ui,
+    fps_counter: Fps,
     input_manager: InputManager,
     start_time: Instant,
     last_frame_time: Instant,
@@ -43,6 +44,7 @@ impl App {
             gfx_data: None,
             renderer: None,
             gui: Ui::default(),
+            fps_counter: Fps::new(),
             input_manager: InputManager::default(),
             start_time: Instant::now(),
             last_frame_time: Instant::now(),
@@ -66,10 +68,12 @@ impl App {
             ..
         }) = self.gfx_data.as_mut()
         {
+            self.fps_counter.update();
             let now = Instant::now();
             let dt = now.duration_since(self.last_frame_time);
             let time = now.duration_since(self.start_time);
             self.last_frame_time = now;
+            self.gui.fps = self.fps_counter.fps;
 
             // Update the UI
             egui_glow.run(window, |ctx| {
@@ -93,11 +97,7 @@ impl App {
     }
 
     fn toggle_cursor_grab(&mut self) {
-        if let Some(GfxData {
-            cursor_grabbed,
-            ..
-        }) = self.gfx_data.as_mut()
-        {
+        if let Some(GfxData { cursor_grabbed, .. }) = self.gfx_data.as_mut() {
             *cursor_grabbed = !*cursor_grabbed;
         }
         self.apply_cursor_grab();
@@ -238,13 +238,19 @@ impl ApplicationHandler for App {
                 ..
             } => {
                 self.input_manager.process_mouse_wheel_scroll(y);
-            },
+            }
             WindowEvent::MouseInput { state, button, .. } => {
                 self.input_manager.process_mouse_button(button, state);
-                if self.input_manager.is_mouse_button_just_pressed(MouseButton::Right) {
+                if self
+                    .input_manager
+                    .is_mouse_button_just_pressed(MouseButton::Right)
+                {
                     gfx_data.cursor_grabbed = true;
                     self.apply_cursor_grab();
-                } else if self.input_manager.is_mouse_button_just_released(MouseButton::Right) {
+                } else if self
+                    .input_manager
+                    .is_mouse_button_just_released(MouseButton::Right)
+                {
                     gfx_data.cursor_grabbed = false;
                     self.apply_cursor_grab();
                 }
@@ -271,6 +277,33 @@ impl ApplicationHandler for App {
     fn about_to_wait(&mut self, _event_loop: &ActiveEventLoop) {
         if let Some(GfxData { window, .. }) = self.gfx_data.as_ref() {
             window.request_redraw();
+        }
+    }
+}
+
+struct Fps {
+    pub fps: u32,
+    last_time: Instant,
+    frames: u32,
+}
+
+impl Fps {
+    fn new() -> Self {
+        Fps {
+            fps: 0,
+            last_time: Instant::now(),
+            frames: 0,
+        }
+    }
+
+    fn update(&mut self) {
+        let now = Instant::now();
+        let dt = now.duration_since(self.last_time);
+        self.frames += 1;
+        if dt.as_secs_f32() > 1.0 {
+            self.fps = (self.frames as f32 / dt.as_secs_f32()) as u32;
+            self.last_time = now;
+            self.frames = 0;
         }
     }
 }

@@ -6,7 +6,8 @@ pub struct Ui {
     pub clear_color: [f32; 3],
     pub camera_sensitivity: f32,
     pub light_color: [f32; 3],
-    pub shininess: i32
+    pub shininess: i32,
+    pub fps: u32,
 }
 
 impl Ui {
@@ -17,7 +18,8 @@ impl Ui {
             clear_color: [0.0, 0.0, 0.0],
             camera_sensitivity: 0.4,
             light_color: [1.0, 1.0, 1.0],
-            shininess: 32
+            shininess: 32,
+            fps: 0,
         }
     }
 
@@ -25,6 +27,7 @@ impl Ui {
         egui::Window::new("Controls")
             .collapsible(false)
             .show(ctx, |ui| {
+                ui.label(format!("FPS: {}", self.fps));
                 ui.add(egui::Slider::new(&mut self.camera_speed, 1.0..=20.0).text("Camera speed"));
                 ui.add(
                     egui::Slider::new(&mut self.camera_sensitivity, 0.1..=1.0)
