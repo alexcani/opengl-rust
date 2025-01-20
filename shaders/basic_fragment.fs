@@ -1,45 +1,60 @@
 #version 450 core
 
+struct Material {
+    sampler2D diffuse;
+    sampler2D specular;
+    int shininess;
+};
+
+struct Light {
+    vec3 position;
+    vec3 color;
+    float ambient_strength;
+    float specular_strength;
+};
+
 in vec2 TexCoord;
 in vec3 Normal;
 in vec3 FragPos;
 
 out vec4 FragColor;
 
-uniform sampler2D texture1;
-uniform sampler2D texture2;
-uniform vec3 lightColor;
-uniform vec3 lightPos;
 uniform vec3 viewPos;
 uniform bool isFloor;
 uniform vec3 floorColor;
-
-uniform int shininess;
+uniform Material material;
+uniform Light light;
 
 void main()
 {
+    vec3 diffuse_color;
+    if(!isFloor)
+        diffuse_color = texture(material.diffuse, TexCoord).rgb;
+    else
+        diffuse_color = floorColor;
+
     // Ambient
-    float ambientStrength = 0.1;
-    vec3 ambient_light = ambientStrength * lightColor;
+    vec3 ambient_light = light.ambient_strength * light.color * diffuse_color;
 
     // Diffuse
     vec3 norm = normalize(Normal);
-    vec3 lightDir = normalize(lightPos - FragPos);
+    vec3 lightDir = normalize(light.position - FragPos);
     float diff = max(dot(norm, lightDir), 0.0);
-    vec3 diffuse = diff * lightColor;
+    vec3 diffuse = diff * light.color * diffuse_color;
 
     // Specular
-    float specularStrength = 0.5;
+    vec3 specular_color;
+    if(!isFloor)
+        specular_color = texture(material.specular, TexCoord).rgb;
+    else
+        specular_color = floorColor;
     vec3 viewDir = normalize(viewPos - FragPos);
     vec3 reflectDir = reflect(-lightDir, norm);
-    float spec = pow(max(dot(viewDir, reflectDir), 0.0), shininess);
-    vec3 specular = specularStrength * spec * lightColor;
+    float spec = pow(max(dot(viewDir, reflectDir), 0.0), material.shininess);
+    vec3 specular = light.specular_strength * spec * light.color * specular_color;
 
     // Final light color
     vec3 light = ambient_light + diffuse + specular;
 
-    if(!isFloor)
-        FragColor = mix(texture(texture1, TexCoord), texture(texture2, TexCoord), 0.2) * vec4(light, 1.0);
-    else
-        FragColor = vec4(floorColor * light, 1.0);
+    FragColor = vec4(light, 1.0);
 }

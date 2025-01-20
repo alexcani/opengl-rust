@@ -166,8 +166,8 @@ impl Renderer {
         self.light_shader.attach_shader(&fragment_shader);
         self.light_shader.link()?;
 
-        self.texture.load_file("./textures/container.jpg")?;
-        self.texture_2.load_file("./textures/awesomeface.png")?;
+        self.texture.load_file("./textures/container2.png")?;
+        self.texture_2.load_file("./textures/container2_specular.png")?;
 
         Ok(())
     }
@@ -190,19 +190,21 @@ impl Renderer {
         // Render objects
         self.shader.use_program();
         self.shader
-            .set_uniform_3fv("lightColor", &args.ui.light_color);
+            .set_uniform_3fv("light.color", &args.ui.light_color);
         // Consider the first light as the light source for now
         let x = self.lights[0].transform.position;
-        self.shader.set_uniform_3fv("lightPos", &x.into());
+        self.shader.set_uniform_3fv("light.position", &x.into());
+        self.shader.set_uniform_1f("light.ambient_strength", args.ui.ambient_strength);
+        self.shader.set_uniform_1f("light.specular_strength", args.ui.specular_strength);
         self.shader.set_uniform_3fv("viewPos", &self.camera.position().into());
-        self.shader.set_uniform_1i("shininess", args.ui.shininess);
+        self.shader.set_uniform_1i("material.shininess", args.ui.shininess);
 
 
         self.shader.set_uniform_1i("isFloor", gl::FALSE.into());
 
         // Textures
-        self.shader.set_uniform_1i("texture1", 0);
-        self.shader.set_uniform_1i("texture2", 1);
+        self.shader.set_uniform_1i("material.diffuse", 0);
+        self.shader.set_uniform_1i("material.specular", 1);
         self.texture.bind_slot(0);
         self.texture_2.bind_slot(1);
 
