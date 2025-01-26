@@ -30,6 +30,7 @@ pub struct Renderer {
     cubes: Vec<Object>,
     lights: Vec<Object>,
     floor: Object,
+    flashlight: bool,
 }
 
 pub struct RenderInfo<'a> {
@@ -57,6 +58,7 @@ impl Renderer {
             cubes: Vec::new(),
             lights: Vec::new(),
             floor: Object::new(Rc::new(Mesh::new())),
+            flashlight: false,
         };
 
         renderer.init().unwrap_or_else(|e| {
@@ -137,10 +139,19 @@ impl Renderer {
         self.floor = floor;
 
         // Light sources
-        let mut light = Object::new(Rc::clone(&cube_mesh));
-        light.transform.position = glam::vec3(1.2, 1.0, 2.0);
-        light.transform.scale = glam::Vec3::splat(0.2);
-        self.lights.push(light);
+        let light_positions = [
+            glam::Vec3::new(0.7, 0.2, 2.0),
+            glam::Vec3::new(2.3, 10.3, -4.0),
+            glam::Vec3::new(-4.0, 2.0, -12.0),
+            glam::Vec3::new(0.0, 0.0, -3.0),
+        ];
+
+        for position in light_positions {
+            let mut light = Object::new(Rc::clone(&cube_mesh));
+            light.transform.position = position;
+            light.transform.scale = glam::Vec3::splat(0.2);
+            self.lights.push(light);
+        }
 
         // Shader for rendering objects
         let vertex_shader =
@@ -167,7 +178,8 @@ impl Renderer {
         self.light_shader.link()?;
 
         self.texture.load_file("./textures/container2.png")?;
-        self.texture_2.load_file("./textures/container2_specular.png")?;
+        self.texture_2
+            .load_file("./textures/container2_specular.png")?;
 
         Ok(())
     }
@@ -176,6 +188,9 @@ impl Renderer {
         let input = args.input_manager;
         if input.is_key_just_pressed(KeyCode::KeyL) {
             self.toggle_wireframe();
+        }
+        if input.is_key_just_pressed(KeyCode::KeyG) {
+            self.flashlight = !self.flashlight;
         }
 
         let color = args.ui.clear_color;
@@ -189,20 +204,75 @@ impl Renderer {
 
         // Render objects
         self.shader.use_program();
+
+        // Set camera position
         self.shader
-            .set_uniform_3fv("light.color", &args.ui.light_color);
-        // Consider the first light as the light source for now
-        let x = self.lights[0].transform.position;
-        self.shader.set_uniform_3fv("light.position", &x.into());
-        self.shader.set_uniform_1f("light.ambient_strength", args.ui.ambient_strength);
-        self.shader.set_uniform_1f("light.specular_strength", args.ui.specular_strength);
-        self.shader.set_uniform_3fv("viewPos", &self.camera.position().into());
-        self.shader.set_uniform_1i("material.shininess", args.ui.shininess);
+            .set_uniform_3fv("viewPos", &self.camera.position().into());
 
+        // Set light properties
+        // Point lights
+        for (i, light) in self.lights.iter().enumerate() {
+            let x = light.transform.position;
+            self.shader
+                .set_uniform_3fv(&format!("pointLights[{}].position", i), &x.into());
+            self.shader
+                .set_uniform_3fv(&format!("pointLights[{}].color", i), &args.ui.light_color);
+            self.shader
+                .set_uniform_1f(&format!("pointLights[{}].constant", i), 1.0);
+            self.shader
+                .set_uniform_1f(&format!("pointLights[{}].linear", i), 0.09);
+            self.shader
+                .set_uniform_1f(&format!("pointLights[{}].quadratic", i), 0.032);
+            self.shader.set_uniform_1f(
+                &format!("pointLights[{}].ambient_strength", i),
+                args.ui.ambient_strength,
+            );
+            self.shader.set_uniform_1f(
+                &format!("pointLights[{}].specular_strength", i),
+                args.ui.specular_strength,
+            );
+        }
 
+        // Directional light
+        self.shader
+            .set_uniform_3fv("directionalLight.direction", &[-0.2, -1.0, -0.3]);
+        self.shader
+            .set_uniform_3fv("directionalLight.color", &[0.0, 0.0, 0.0]); //args.ui.light_color);
+        self.shader.set_uniform_1f(
+            "directionalLight.ambient_strength",
+            args.ui.ambient_strength,
+        );
+        self.shader.set_uniform_1f(
+            "directionalLight.specular_strength",
+            args.ui.specular_strength,
+        );
+
+        // Flashlight
+        self.shader
+            .set_uniform_3fv("flashlight.position", &self.camera.position().into());
+        self.shader
+            .set_uniform_3fv("flashlight.direction", &self.camera.direction().into());
+        self.shader
+            .set_uniform_1f("flashlight.cutOff", 12.5_f32.to_radians().cos());
+        self.shader
+            .set_uniform_1f("flashlight.outerCutOff", 17.5_f32.to_radians().cos());
+        self.shader.set_uniform_1f("flashlight.constant", 1.0);
+        self.shader.set_uniform_1f("flashlight.linear", 0.09);
+        self.shader.set_uniform_1f("flashlight.quadratic", 0.032);
+        if self.flashlight {
+            self.shader
+                .set_uniform_3fv("flashlight.color", &[1.0, 1.0, 1.0]);
+        } else {
+            self.shader
+                .set_uniform_3fv("flashlight.color", &[0.0, 0.0, 0.0]);
+        }
+
+        // Is floor
         self.shader.set_uniform_1i("isFloor", gl::FALSE.into());
 
-        // Textures
+        // Material properties
+        self.shader
+            .set_uniform_1i("material.shininess", args.ui.shininess);
         self.shader.set_uniform_1i("material.diffuse", 0);
         self.shader.set_uniform_1i("material.specular", 1);
         self.texture.bind_slot(0);

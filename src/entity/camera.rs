@@ -51,6 +51,10 @@ impl Camera {
         self.position
     }
 
+    pub fn direction(&self) -> Vec3 {
+        self.direction
+    }
+
     pub fn view_matrix(&self) -> &Mat4 {
         &self.view_matrix
     }
