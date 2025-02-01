@@ -47,3 +47,9 @@ impl Object {
         self.mesh.draw();
     }
 }
+
+impl Default for Object {
+    fn default() -> Self {
+        Self::new(Rc::new(Mesh::default()))
+    }
+}

@@ -3,6 +3,7 @@ pub mod mesh;
 pub mod shader;
 mod texture;
 
+use std::cell::RefCell;
 use std::ffi::CString;
 use std::rc::Rc;
 use std::time::Duration;
@@ -10,8 +11,8 @@ use std::time::Duration;
 use glutin::display::GlDisplay;
 use winit::keyboard::KeyCode;
 
-use crate::scene::{Camera, Object};
 use crate::input::InputManager;
+use crate::scene::{Object, Scene};
 use crate::ui::Ui;
 use mesh::{Mesh, Vertex};
 use shader::{Shader, ShaderProgram};
@@ -26,10 +27,10 @@ pub struct Renderer {
     texture: Texture2D,
     texture_2: Texture2D,
     size: (u32, u32),
-    camera: Camera,
-    cubes: Vec<Object>,
-    lights: Vec<Object>,
-    floor: Object,
+    scene: Scene,
+    cubes: Vec<Rc<RefCell<Object>>>,
+    lights: Vec<Rc<RefCell<Object>>>,
+    floor: Rc<RefCell<Object>>,
     flashlight: bool,
 }
 
@@ -54,10 +55,10 @@ impl Renderer {
             texture: Texture2D::new(),
             texture_2: Texture2D::new(),
             size: (1, 1),
-            camera: Camera::default(),
+            scene: Scene::default(),
             cubes: Vec::new(),
             lights: Vec::new(),
-            floor: Object::new(Rc::new(Mesh::new())),
+            floor: Default::default(),
             flashlight: false,
         };
 
@@ -127,15 +128,20 @@ impl Renderer {
         ];
 
         for position in cube_positions {
-            let mut cube = Object::new(Rc::clone(&cube_mesh));
-            cube.transform.position = position;
+            let cube = Rc::new(RefCell::new(Object::new(Rc::clone(&cube_mesh))));
+            cube.borrow_mut().transform.position = position;
+            self.scene.add_object(Rc::clone(&cube));
             self.cubes.push(cube);
         }
 
         // Floor
-        let mut floor = Object::new(Rc::clone(&cube_mesh));
-        floor.transform.position = glam::vec3(0.0, -3.0, 0.0);
-        floor.transform.scale = glam::Vec3::new(50.0, 0.1, 50.0);
+        let floor = Rc::new(RefCell::new(Object::new(Rc::clone(&cube_mesh))));
+        {
+            let mut floor = floor.borrow_mut();
+            floor.transform.position = glam::vec3(0.0, -3.0, 0.0);
+            floor.transform.scale = glam::Vec3::new(50.0, 0.1, 50.0);
+        }
+        self.scene.add_object(Rc::clone(&floor));
         self.floor = floor;
 
         // Light sources
@@ -147,10 +153,14 @@ impl Renderer {
         ];
 
         for position in light_positions {
-            let mut light = Object::new(Rc::clone(&cube_mesh));
-            light.transform.position = position;
-            light.transform.scale = glam::Vec3::splat(0.2);
-            self.lights.push(light);
+            let light = Rc::new(RefCell::new(Object::new(Rc::clone(&cube_mesh))));
+            {
+                let mut light = light.borrow_mut();
+                light.transform.position = position;
+                light.transform.scale = glam::Vec3::splat(0.2);
+            }
+            self.lights.push(Rc::clone(&light));
+            self.scene.add_object(Rc::clone(&light));
         }
 
         // Shader for rendering objects
@@ -200,19 +210,19 @@ impl Renderer {
             gl::Enable(gl::DEPTH_TEST);
         }
 
-        self.camera.update(args);
+        self.scene.camera.update(args);
 
         // Render objects
         self.shader.use_program();
 
         // Set camera position
         self.shader
-            .set_uniform_3fv("viewPos", &self.camera.position().into());
+            .set_uniform_3fv("viewPos", &self.scene.camera.position().into());
 
         // Set light properties
         // Point lights
         for (i, light) in self.lights.iter().enumerate() {
-            let x = light.transform.position;
+            let x = light.borrow_mut().transform.position;
             self.shader
                 .set_uniform_3fv(&format!("pointLights[{}].position", i), &x.into());
             self.shader
@@ -249,9 +259,11 @@ impl Renderer {
 
         // Flashlight
         self.shader
-            .set_uniform_3fv("flashlight.position", &self.camera.position().into());
-        self.shader
-            .set_uniform_3fv("flashlight.direction", &self.camera.direction().into());
+            .set_uniform_3fv("flashlight.position", &self.scene.camera.position().into());
+        self.shader.set_uniform_3fv(
+            "flashlight.direction",
+            &self.scene.camera.direction().into(),
+        );
         self.shader
             .set_uniform_1f("flashlight.cutOff", 12.5_f32.to_radians().cos());
         self.shader
@@ -279,34 +291,34 @@ impl Renderer {
         self.texture_2.bind_slot(1);
 
         self.shader
-            .set_uniform_mat4("projection", self.camera.projection_matrix());
+            .set_uniform_mat4("projection", self.scene.camera.projection_matrix());
         self.shader
-            .set_uniform_mat4("view", self.camera.view_matrix());
+            .set_uniform_mat4("view", self.scene.camera.view_matrix());
 
         for (i, cube) in self.cubes.iter_mut().enumerate() {
             let angle = (20.0 * i as f32).to_radians();
             let axis = glam::Vec3::new(1.0, 0.3, 0.5).normalize();
             let quat = glam::Quat::from_axis_angle(axis, args.time.as_secs_f32() * angle);
-            cube.transform.rotation = quat;
-            cube.render(&mut self.shader);
+            cube.borrow_mut().transform.rotation = quat;
+            cube.borrow_mut().render(&mut self.shader);
         }
 
         // Floor
         self.shader.set_uniform_1i("isFloor", gl::TRUE.into());
         self.shader.set_uniform_3f("floorColor", 0.5, 0.5, 0.5);
-        self.floor.render(&mut self.shader);
+        self.floor.borrow_mut().render(&mut self.shader);
 
         // Render light sources
         self.light_shader.use_program();
         self.light_shader
             .set_uniform_3fv("lightColor", &args.ui.light_color);
         self.light_shader
-            .set_uniform_mat4("projection", self.camera.projection_matrix());
+            .set_uniform_mat4("projection", self.scene.camera.projection_matrix());
         self.light_shader
-            .set_uniform_mat4("view", self.camera.view_matrix());
+            .set_uniform_mat4("view", self.scene.camera.view_matrix());
 
         for light in &self.lights {
-            light.render(&mut self.light_shader);
+            light.borrow_mut().render(&mut self.light_shader);
         }
     }
 
@@ -315,7 +327,7 @@ impl Renderer {
             gl::Viewport(0, 0, width as GLsizei, height as GLsizei);
         }
         self.size = (width, height);
-        self.camera.resize(width, height);
+        self.scene.camera.resize(width, height);
     }
 
     pub fn toggle_wireframe(&mut self) {
