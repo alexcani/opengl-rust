@@ -1,4 +1,4 @@
 pub mod renderer;
-pub mod entity;
+pub mod scene;
 pub mod input;
 pub mod ui;

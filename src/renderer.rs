@@ -10,7 +10,7 @@ use std::time::Duration;
 use glutin::display::GlDisplay;
 use winit::keyboard::KeyCode;
 
-use crate::entity::{Camera, Object};
+use crate::scene::{Camera, Object};
 use crate::input::InputManager;
 use crate::ui::Ui;
 use mesh::{Mesh, Vertex};
@@ -237,7 +237,7 @@ impl Renderer {
         self.shader
             .set_uniform_3fv("directionalLight.direction", &[-0.2, -1.0, -0.3]);
         self.shader
-            .set_uniform_3fv("directionalLight.color", &[0.0, 0.0, 0.0]); //args.ui.light_color);
+            .set_uniform_3fv("directionalLight.color", &args.ui.light_color);
         self.shader.set_uniform_1f(
             "directionalLight.ambient_strength",
             args.ui.ambient_strength,
