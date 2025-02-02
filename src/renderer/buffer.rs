@@ -4,6 +4,7 @@ use gl::types::*;
 pub enum BufferType {
     Vertex,
     Index,
+    Uniform,
 }
 
 impl BufferType {
@@ -11,6 +12,7 @@ impl BufferType {
         match self {
             BufferType::Vertex => gl::ARRAY_BUFFER,
             BufferType::Index => gl::ELEMENT_ARRAY_BUFFER,
+            BufferType::Uniform => gl::UNIFORM_BUFFER,
         }
     }
 }
@@ -61,5 +63,47 @@ impl Drop for Buffer {
         unsafe {
             gl::DeleteBuffers(1, &self.id);
         }
+    }
+}
+
+pub struct UniformBuffer {
+    binding_point: GLuint,
+    buffer: Buffer,
+}
+
+impl UniformBuffer {
+    pub fn new(binding_point: GLuint, size: usize) -> Self {
+        let buffer = Buffer::new(BufferType::Uniform);
+        unsafe {
+            gl::BindBuffer(gl::UNIFORM_BUFFER, buffer.id);
+            gl::BufferData(
+                gl::UNIFORM_BUFFER,
+                size as isize,
+                std::ptr::null(),
+                gl::DYNAMIC_DRAW,
+            );
+            gl::BindBuffer(gl::UNIFORM_BUFFER, 0);
+            gl::BindBufferBase(gl::UNIFORM_BUFFER, binding_point, buffer.id);
+        }
+        UniformBuffer { binding_point, buffer }
+    }
+
+    pub fn update_data<T>(&self, offset: usize, data: &[T]) {
+        unsafe {
+            gl::BufferSubData(
+                gl::UNIFORM_BUFFER,
+                offset as isize,
+                size_of_val(data) as isize,
+                data.as_ptr() as *const _,
+            );
+        }
+    }
+
+    pub fn bind(&self) {
+        self.buffer.bind();
+    }
+
+    pub fn unbind(&self) {
+        self.buffer.unbind();
     }
 }
