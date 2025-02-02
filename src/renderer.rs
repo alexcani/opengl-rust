@@ -1,7 +1,8 @@
 mod buffer;
 pub mod mesh;
 pub mod shader;
-mod texture;
+pub mod texture;
+pub mod material;
 
 use std::cell::RefCell;
 use std::ffi::CString;
