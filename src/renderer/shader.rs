@@ -18,11 +18,14 @@ impl Shader {
             ShaderType::Fragment => gl::FRAGMENT_SHADER,
         };
 
-        let id = unsafe {
-            gl::CreateShader(t)
-        };
+        let id = unsafe { gl::CreateShader(t) };
         unsafe {
-            gl::ShaderSource(id, 1, &(src.as_ptr().cast()), &(src.len().try_into().unwrap()));
+            gl::ShaderSource(
+                id,
+                1,
+                &(src.as_ptr().cast()),
+                &(src.len().try_into().unwrap()),
+            );
         }
         Shader { id }
     }
@@ -50,7 +53,12 @@ impl Shader {
 
             let mut buffer = vec![0; len as usize];
             unsafe {
-                gl::GetShaderInfoLog(self.id, len, std::ptr::null_mut(), buffer.as_mut_ptr() as *mut GLchar);
+                gl::GetShaderInfoLog(
+                    self.id,
+                    len,
+                    std::ptr::null_mut(),
+                    buffer.as_mut_ptr() as *mut GLchar,
+                );
             }
 
             return Err(String::from_utf8(buffer).unwrap());
@@ -80,10 +88,11 @@ pub struct ShaderProgram {
 #[allow(dead_code)]
 impl ShaderProgram {
     pub fn new() -> Self {
-        let id = unsafe {
-            gl::CreateProgram()
-        };
-        ShaderProgram { id, uniforms: HashMap::new() }
+        let id = unsafe { gl::CreateProgram() };
+        ShaderProgram {
+            id,
+            uniforms: HashMap::new(),
+        }
     }
 
     pub fn attach_shader(&self, shader: &Shader) {
@@ -110,7 +119,12 @@ impl ShaderProgram {
 
             let mut buffer = vec![0; len as usize];
             unsafe {
-                gl::GetProgramInfoLog(self.id, len, std::ptr::null_mut(), buffer.as_mut_ptr() as *mut GLchar);
+                gl::GetProgramInfoLog(
+                    self.id,
+                    len,
+                    std::ptr::null_mut(),
+                    buffer.as_mut_ptr() as *mut GLchar,
+                );
             }
 
             return Err(String::from_utf8(buffer).unwrap());
@@ -147,13 +161,23 @@ impl ShaderProgram {
 
     pub fn set_uniform_mat4(&mut self, name: &str, mat: &glam::Mat4) {
         unsafe {
-            gl::UniformMatrix4fv(self.get_uniform_location(name), 1, gl::FALSE, mat.to_cols_array().as_ptr());
+            gl::UniformMatrix4fv(
+                self.get_uniform_location(name),
+                1,
+                gl::FALSE,
+                mat.to_cols_array().as_ptr(),
+            );
         }
     }
 
     pub fn set_uniform_mat3(&mut self, name: &str, mat: &glam::Mat3) {
         unsafe {
-            gl::UniformMatrix3fv(self.get_uniform_location(name), 1, gl::FALSE, mat.to_cols_array().as_ptr());
+            gl::UniformMatrix3fv(
+                self.get_uniform_location(name),
+                1,
+                gl::FALSE,
+                mat.to_cols_array().as_ptr(),
+            );
         }
     }
 
@@ -191,9 +215,18 @@ impl ShaderProgram {
             let mut size = 0;
             let mut type_ = 0;
             unsafe {
-                gl::GetActiveUniform(self.id, i as u32, max_length, &mut written_length, &mut size, &mut type_, buffer.as_mut_ptr() as *mut GLchar);
+                gl::GetActiveUniform(
+                    self.id,
+                    i as u32,
+                    max_length,
+                    &mut written_length,
+                    &mut size,
+                    &mut type_,
+                    buffer.as_mut_ptr() as *mut GLchar,
+                );
             }
-            let uniform_name = String::from_utf8(buffer[0..written_length as usize].to_vec()).unwrap();
+            let uniform_name =
+                String::from_utf8(buffer[0..written_length as usize].to_vec()).unwrap();
             self.uniforms.insert(uniform_name.into_boxed_str(), i);
         }
     }
