@@ -1,4 +1,5 @@
 use std::error::Error;
+use std::num::NonZero;
 use std::sync::Arc;
 use std::time::Instant;
 
@@ -168,6 +169,7 @@ impl ApplicationHandler for App {
                 .unwrap()
         };
         let context = context.make_current(&surface).unwrap();
+        surface.set_swap_interval(&context, glutin::surface::SwapInterval::Wait(NonZero::new(1).unwrap())).unwrap();
 
         // Initialize glow for egui
         let glow_ctx = unsafe {
