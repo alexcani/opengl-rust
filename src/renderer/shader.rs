@@ -227,7 +227,10 @@ impl ShaderProgram {
             }
             let uniform_name =
                 String::from_utf8(buffer[0..written_length as usize].to_vec()).unwrap();
-            self.uniforms.insert(uniform_name.into_boxed_str(), i);
+            let location =
+                unsafe { gl::GetUniformLocation(self.id, buffer.as_ptr() as *const GLchar) };
+            self.uniforms
+                .insert(uniform_name.into_boxed_str(), location);
         }
     }
 
