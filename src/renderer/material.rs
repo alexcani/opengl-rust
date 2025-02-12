@@ -1,5 +1,6 @@
-use std::collections::HashMap;
+use std::collections::hash_map::Entry;
 use std::rc::Rc;
+use std::{cell::Cell, collections::HashMap};
 
 use crate::renderer::{ShaderProgram, Texture2D};
 
@@ -7,17 +8,24 @@ use crate::renderer::{ShaderProgram, Texture2D};
 pub struct Material {
     name: String,
     shader: Rc<ShaderProgram>,
-    properties: HashMap<String, MaterialProperty>,
+    properties: HashMap<String, PropertyState>,
 }
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 pub enum MaterialProperty {
     Boolean(bool),
     Integer(i32),
     UInteger(u32),
     Float(f32),
+    Vec3([f32; 3]),
     Color(f32, f32, f32),
     Texture(Rc<Texture2D>),
+}
+
+#[derive(Clone)]
+struct PropertyState {
+    property: MaterialProperty,
+    dirty: Cell<bool>,
 }
 
 impl Material {
@@ -34,20 +42,49 @@ impl Material {
         shader: Rc<ShaderProgram>,
         properties: HashMap<String, MaterialProperty>,
     ) -> Self {
+        let states = properties
+            .into_iter()
+            .map(|(name, property)| {
+                (
+                    name,
+                    PropertyState {
+                        property,
+                        dirty: Cell::new(true),
+                    },
+                )
+            })
+            .collect();
         Self {
             name: name.to_string(),
             shader,
-            properties,
+            properties: states,
         }
     }
 
-    pub fn clone_with_overrides(&self, new_name: &str, overrides: HashMap<String, MaterialProperty>) -> Self {
-        let mut new_properties = self.properties.clone();
-        new_properties.extend(overrides);
+    pub fn clone_with_overrides(
+        &self,
+        new_name: &str,
+        overrides: HashMap<String, MaterialProperty>,
+    ) -> Self {
+        let new_states: HashMap<_, _> = overrides
+            .into_iter()
+            .map(|(name, property)| {
+                (
+                    name,
+                    PropertyState {
+                        property,
+                        dirty: Cell::new(true),
+                    },
+                )
+            })
+            .collect();
+
+        let mut old_states = self.properties.clone();
+        old_states.extend(new_states);
         Self {
             name: new_name.to_string(),
             shader: Rc::clone(&self.shader),
-            properties: new_properties,
+            properties: old_states,
         }
     }
 
@@ -64,7 +101,22 @@ impl Material {
     }
 
     pub fn set_property(&mut self, name: &str, value: MaterialProperty) {
-        self.properties.insert(name.to_string(), value);
+        let key = name.to_string();
+        match self.properties.entry(key) {
+            Entry::Vacant(entry) => {
+                entry.insert(PropertyState {
+                    property: value,
+                    dirty: Cell::new(true),
+                });
+            }
+            Entry::Occupied(mut entry) => {
+                let state = entry.get_mut();
+                if state.property != value {
+                    state.property = value;
+                    state.dirty = Cell::new(true);
+                }
+            }
+        }
     }
 
     pub fn set_boolean(&mut self, name: &str, value: bool) {
@@ -83,6 +135,10 @@ impl Material {
         self.set_property(name, MaterialProperty::Float(value));
     }
 
+    pub fn set_vec3(&mut self, name: &str, value: [f32; 3]) {
+        self.set_property(name, MaterialProperty::Vec3(value));
+    }
+
     pub fn set_color(&mut self, name: &str, r: f32, g: f32, b: f32) {
         self.set_property(name, MaterialProperty::Color(r, g, b));
     }
@@ -99,8 +155,12 @@ impl Material {
         self.shader.use_program();
 
         let mut texture_slot = 0;
-        for (name, property) in &self.properties {
-            match property {
+        for (name, state) in &self.properties {
+            if !state.dirty.get() {
+                continue;
+            }
+
+            match &state.property {
                 MaterialProperty::Boolean(value) => {
                     self.shader.set_uniform_1i(name, *value as i32);
                 }
@@ -113,15 +173,19 @@ impl Material {
                 MaterialProperty::Float(value) => {
                     self.shader.set_uniform_1f(name, *value);
                 }
+                MaterialProperty::Vec3(value) => {
+                    self.shader.set_uniform_3fv(name, value);
+                }
                 MaterialProperty::Color(r, g, b) => {
                     self.shader.set_uniform_3f(name, *r, *g, *b);
                 }
                 MaterialProperty::Texture(texture) => {
                     texture.bind_slot(texture_slot);
-                    self.shader.set_uniform_1ui(name, texture_slot);
+                    self.shader.set_uniform_1i(name, texture_slot as i32);
                     texture_slot += 1;
                 }
             }
+            state.dirty.set(false);
         }
     }
 }

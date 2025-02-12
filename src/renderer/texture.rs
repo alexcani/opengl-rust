@@ -5,6 +5,7 @@ use gl::types::*;
 use image::ImageReader;
 use image::metadata::Orientation;
 
+#[derive(PartialEq, Eq)]
 pub struct Texture2D {
     id: GLuint,
 }
@@ -64,6 +65,10 @@ impl Texture2D {
         }
 
         Ok(())
+    }
+
+    pub fn id(&self) -> GLuint {
+        self.id
     }
 }
 
