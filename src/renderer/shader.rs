@@ -1,3 +1,4 @@
+use std::cell::RefCell;
 use std::collections::HashMap;
 
 use gl::types::*;
@@ -83,6 +84,7 @@ impl Drop for Shader {
 pub struct ShaderProgram {
     id: GLuint,
     uniforms: HashMap<Box<str>, GLint>,
+    uniform_cache: RefCell<HashMap<Box<str>, UniformValue>>,
 }
 
 #[allow(dead_code)]
@@ -92,6 +94,7 @@ impl ShaderProgram {
         ShaderProgram {
             id,
             uniforms: HashMap::new(),
+            uniform_cache: RefCell::new(HashMap::new()),
         }
     }
 
@@ -141,62 +144,79 @@ impl ShaderProgram {
         }
     }
 
-    pub fn set_uniform_4f(&self, name: &str, x: f32, y: f32, z: f32, w: f32) {
-        unsafe {
-            gl::Uniform4f(self.get_uniform_location(name), x, y, z, w);
+    fn set_uniform<T: Into<UniformValue>>(&self, name: &str, value: T, setter: impl FnOnce()) {
+        let new_value = UniformValue::from_value(value);
+        {
+            let cache = self.uniform_cache.borrow();
+            if let Some(cached_value) = cache.get(name) {
+                if cached_value == &new_value {
+                    return;
+                }
+            }
         }
+
+        self.uniform_cache
+            .borrow_mut()
+            .insert(name.into(), new_value);
+        setter();
+    }
+
+    pub fn set_uniform_4f(&self, name: &str, x: f32, y: f32, z: f32, w: f32) {
+        self.set_uniform(name, [x, y, z, w], || unsafe {
+            gl::Uniform4f(self.get_uniform_location(name), x, y, z, w);
+        });
     }
 
     pub fn set_uniform_1f(&self, name: &str, x: f32) {
-        unsafe {
+        self.set_uniform(name, x, || unsafe {
             gl::Uniform1f(self.get_uniform_location(name), x);
-        }
+        });
     }
 
     pub fn set_uniform_1i(&self, name: &str, x: i32) {
-        unsafe {
+        self.set_uniform(name, x, || unsafe {
             gl::Uniform1i(self.get_uniform_location(name), x);
-        }
+        });
     }
 
     pub fn set_uniform_1ui(&self, name: &str, x: u32) {
-        unsafe {
+        self.set_uniform(name, x, || unsafe {
             gl::Uniform1ui(self.get_uniform_location(name), x);
-        }
+        });
     }
 
     pub fn set_uniform_mat4(&self, name: &str, mat: &glam::Mat4) {
-        unsafe {
+        self.set_uniform(name, *mat, || unsafe {
             gl::UniformMatrix4fv(
                 self.get_uniform_location(name),
                 1,
                 gl::FALSE,
                 mat.to_cols_array().as_ptr(),
             );
-        }
+        });
     }
 
     pub fn set_uniform_mat3(&self, name: &str, mat: &glam::Mat3) {
-        unsafe {
+        self.set_uniform(name, *mat, || unsafe {
             gl::UniformMatrix3fv(
                 self.get_uniform_location(name),
                 1,
                 gl::FALSE,
                 mat.to_cols_array().as_ptr(),
             );
-        }
+        });
     }
 
     pub fn set_uniform_3fv(&self, name: &str, x: &[f32; 3]) {
-        unsafe {
+        self.set_uniform(name, *x, || unsafe {
             gl::Uniform3fv(self.get_uniform_location(name), 1, x.as_ptr());
-        }
+        });
     }
 
     pub fn set_uniform_3f(&self, name: &str, x: f32, y: f32, z: f32) {
-        unsafe {
+        self.set_uniform(name, [x, y, z], || unsafe {
             gl::Uniform3f(self.get_uniform_location(name), x, y, z);
-        }
+        });
     }
 
     fn get_uniform_location(&self, name: &str) -> i32 {
@@ -256,5 +276,64 @@ impl Drop for ShaderProgram {
         unsafe {
             gl::DeleteProgram(self.id);
         }
+    }
+}
+
+#[derive(PartialEq)]
+enum UniformValue {
+    Int(i32),
+    UInt(u32),
+    Float(f32),
+    VecF3([f32; 3]),
+    VecF4([f32; 4]),
+    Mat3(glam::Mat3),
+    Mat4(glam::Mat4),
+}
+
+impl UniformValue {
+    fn from_value<T: Into<Self>>(value: T) -> Self {
+        value.into()
+    }
+}
+
+impl From<u32> for UniformValue {
+    fn from(value: u32) -> Self {
+        UniformValue::UInt(value)
+    }
+}
+
+impl From<i32> for UniformValue {
+    fn from(value: i32) -> Self {
+        UniformValue::Int(value)
+    }
+}
+
+impl From<f32> for UniformValue {
+    fn from(value: f32) -> Self {
+        UniformValue::Float(value)
+    }
+}
+
+impl From<[f32; 3]> for UniformValue {
+    fn from(value: [f32; 3]) -> Self {
+        UniformValue::VecF3(value)
+    }
+}
+
+impl From<[f32; 4]> for UniformValue {
+    fn from(value: [f32; 4]) -> Self {
+        UniformValue::VecF4(value)
+    }
+}
+
+impl From<glam::Mat3> for UniformValue {
+    fn from(value: glam::Mat3) -> Self {
+        UniformValue::Mat3(value)
+    }
+}
+
+impl From<glam::Mat4> for UniformValue {
+    fn from(value: glam::Mat4) -> Self {
+        UniformValue::Mat4(value)
     }
 }
