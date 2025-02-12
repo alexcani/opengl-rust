@@ -141,25 +141,31 @@ impl ShaderProgram {
         }
     }
 
-    pub fn set_uniform_4f(&mut self, name: &str, x: f32, y: f32, z: f32, w: f32) {
+    pub fn set_uniform_4f(&self, name: &str, x: f32, y: f32, z: f32, w: f32) {
         unsafe {
             gl::Uniform4f(self.get_uniform_location(name), x, y, z, w);
         }
     }
 
-    pub fn set_uniform_1f(&mut self, name: &str, x: f32) {
+    pub fn set_uniform_1f(&self, name: &str, x: f32) {
         unsafe {
             gl::Uniform1f(self.get_uniform_location(name), x);
         }
     }
 
-    pub fn set_uniform_1i(&mut self, name: &str, x: i32) {
+    pub fn set_uniform_1i(&self, name: &str, x: i32) {
         unsafe {
             gl::Uniform1i(self.get_uniform_location(name), x);
         }
     }
 
-    pub fn set_uniform_mat4(&mut self, name: &str, mat: &glam::Mat4) {
+    pub fn set_uniform_1ui(&self, name: &str, x: u32) {
+        unsafe {
+            gl::Uniform1ui(self.get_uniform_location(name), x);
+        }
+    }
+
+    pub fn set_uniform_mat4(&self, name: &str, mat: &glam::Mat4) {
         unsafe {
             gl::UniformMatrix4fv(
                 self.get_uniform_location(name),
@@ -170,7 +176,7 @@ impl ShaderProgram {
         }
     }
 
-    pub fn set_uniform_mat3(&mut self, name: &str, mat: &glam::Mat3) {
+    pub fn set_uniform_mat3(&self, name: &str, mat: &glam::Mat3) {
         unsafe {
             gl::UniformMatrix3fv(
                 self.get_uniform_location(name),
@@ -181,19 +187,19 @@ impl ShaderProgram {
         }
     }
 
-    pub fn set_uniform_3fv(&mut self, name: &str, x: &[f32; 3]) {
+    pub fn set_uniform_3fv(&self, name: &str, x: &[f32; 3]) {
         unsafe {
             gl::Uniform3fv(self.get_uniform_location(name), 1, x.as_ptr());
         }
     }
 
-    pub fn set_uniform_3f(&mut self, name: &str, x: f32, y: f32, z: f32) {
+    pub fn set_uniform_3f(&self, name: &str, x: f32, y: f32, z: f32) {
         unsafe {
             gl::Uniform3f(self.get_uniform_location(name), x, y, z);
         }
     }
 
-    fn get_uniform_location(&mut self, name: &str) -> i32 {
+    fn get_uniform_location(&self, name: &str) -> i32 {
         if let Some(location) = self.uniforms.get(name) {
             return *location;
         }
