@@ -1,7 +1,8 @@
 use std::rc::Rc;
+use std::cell::RefCell;
 
 use crate::renderer::mesh::Mesh;
-use crate::renderer::shader::ShaderProgram;
+use crate::renderer::material::Material;
 
 pub struct Transform {
     pub position: glam::Vec3,
@@ -31,25 +32,25 @@ impl Default for Transform {
 
 pub struct Object {
     pub transform: Transform,
+    pub rotate: bool,
+    material: Rc<RefCell<Material>>,
     mesh: Rc<Mesh>,
 }
 
 impl Object {
-    pub fn new(mesh: Rc<Mesh>) -> Self {
+    pub fn new(mesh: Rc<Mesh>, material: Rc<RefCell<Material>>) -> Self {
         Self {
             transform: Transform::default(),
+            rotate: false,
+            material,
             mesh,
         }
     }
 
-    pub fn render(&self, shader: &mut ShaderProgram) {
-        shader.set_uniform_mat4("model", &self.transform.model_matrix());
+    pub fn render(&self) {
+        let material = self.material.borrow();
+        material.use_material();
+        material.shader().set_uniform_mat4("model", &self.transform.model_matrix());
         self.mesh.draw();
-    }
-}
-
-impl Default for Object {
-    fn default() -> Self {
-        Self::new(Rc::new(Mesh::default()))
     }
 }

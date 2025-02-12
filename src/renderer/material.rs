@@ -41,18 +41,26 @@ impl Material {
         }
     }
 
-    pub fn clone_with_overrides(&self, overrides: HashMap<String, MaterialProperty>) -> Self {
+    pub fn clone_with_overrides(&self, new_name: &str, overrides: HashMap<String, MaterialProperty>) -> Self {
         let mut new_properties = self.properties.clone();
         new_properties.extend(overrides);
         Self {
-            name: self.name.clone(),
+            name: new_name.to_string(),
             shader: Rc::clone(&self.shader),
             properties: new_properties,
         }
     }
 
+    pub fn set_name(&mut self, name: &str) {
+        self.name = name.to_string();
+    }
+
     pub fn name(&self) -> &str {
         &self.name
+    }
+
+    pub fn shader(&self) -> Rc<ShaderProgram> {
+        Rc::clone(&self.shader)
     }
 
     pub fn set_property(&mut self, name: &str, value: MaterialProperty) {
