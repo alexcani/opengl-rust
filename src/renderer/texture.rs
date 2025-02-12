@@ -5,7 +5,7 @@ use gl::types::*;
 use image::ImageReader;
 use image::metadata::Orientation;
 
-#[derive(PartialEq, Eq)]
+#[derive(PartialEq, Eq, Hash, Debug)]
 pub struct Texture2D {
     id: GLuint,
 }

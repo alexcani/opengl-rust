@@ -15,7 +15,7 @@ use winit::keyboard::KeyCode;
 use crate::input::InputManager;
 use crate::scene::{Object, Scene};
 use crate::ui::Ui;
-use material::{Material, MaterialProperty};
+use material::{Material, PropertyValue};
 use mesh::{Mesh, Vertex};
 use shader::{Shader, ShaderProgram};
 use texture::Texture2D;
@@ -154,17 +154,17 @@ impl Renderer {
             [
                 (
                     "material.diffuse".to_string(),
-                    MaterialProperty::Texture(Rc::clone(&container_texture_diffuse)),
+                    PropertyValue::Texture(Rc::clone(&container_texture_diffuse)),
                 ),
                 (
                     "material.specular".to_string(),
-                    MaterialProperty::Texture(Rc::clone(&container_texture_specular)),
+                    PropertyValue::Texture(Rc::clone(&container_texture_specular)),
                 ),
                 (
                     "material.shininess".to_string(),
-                    MaterialProperty::Integer(32),
+                    PropertyValue::Integer(32),
                 ),
-                ("isFloor".to_string(), MaterialProperty::Boolean(false)),
+                ("isFloor".to_string(), PropertyValue::Boolean(false)),
             ]
             .into(),
         )));
@@ -173,15 +173,17 @@ impl Renderer {
             phong_textured.borrow().clone_with_overrides(
                 "phong_floor",
                 [
-                    ("isFloor".to_string(), MaterialProperty::Boolean(true)),
+                    ("isFloor".to_string(), PropertyValue::Boolean(true)),
                     (
                         "floorColor".to_string(),
-                        MaterialProperty::Color(0.5, 0.5, 0.5),
+                        PropertyValue::Color(0.5, 0.5, 0.5),
                     ),
                 ]
                 .into(),
             ),
         ));
+        phong_floor.borrow_mut().delete_property("material.diffuse");
+        phong_floor.borrow_mut().delete_property("material.specular");
 
         let light_source = Rc::new(RefCell::new(Material::new(
             "light_source",
