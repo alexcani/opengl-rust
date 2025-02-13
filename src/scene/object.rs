@@ -4,6 +4,7 @@ use std::cell::RefCell;
 use crate::renderer::mesh::Mesh;
 use crate::renderer::material::Material;
 
+#[derive(Debug)]
 pub struct Transform {
     pub position: glam::Vec3,
     pub scale: glam::Vec3,

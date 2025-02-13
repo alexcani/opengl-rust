@@ -1,5 +1,6 @@
 pub mod camera;
 pub mod object;
+pub mod light;
 
 use std::{cell::RefCell, rc::Rc};
 
