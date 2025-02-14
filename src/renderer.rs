@@ -13,7 +13,7 @@ use glutin::display::GlDisplay;
 use winit::keyboard::KeyCode;
 
 use crate::input::InputManager;
-use crate::scene::{Object, Scene};
+use crate::scene::{Light, Object, Scene};
 use crate::ui::Ui;
 use material::{Material, PropertyValue};
 use mesh::{Mesh, Vertex};
@@ -28,7 +28,6 @@ pub struct Renderer {
     scene: Scene,
     phong_materials: Vec<Rc<RefCell<Material>>>,
     light_materials: Vec<Rc<RefCell<Material>>>,
-    lights: Vec<Rc<RefCell<Object>>>,
     flashlight: bool,
 }
 
@@ -52,7 +51,6 @@ impl Renderer {
             scene: Scene::default(),
             phong_materials: Vec::new(),
             light_materials: Vec::new(),
-            lights: Vec::new(),
             flashlight: false,
         };
 
@@ -160,10 +158,7 @@ impl Renderer {
                     "material.specular".to_string(),
                     PropertyValue::Texture(Rc::clone(&container_texture_specular)),
                 ),
-                (
-                    "material.shininess".to_string(),
-                    PropertyValue::Integer(32),
-                ),
+                ("material.shininess".to_string(), PropertyValue::Integer(32)),
                 ("isFloor".to_string(), PropertyValue::Boolean(false)),
             ]
             .into(),
@@ -183,7 +178,9 @@ impl Renderer {
             ),
         ));
         phong_floor.borrow_mut().delete_property("material.diffuse");
-        phong_floor.borrow_mut().delete_property("material.specular");
+        phong_floor
+            .borrow_mut()
+            .delete_property("material.specular");
 
         let light_source = Rc::new(RefCell::new(Material::new(
             "light_source",
@@ -239,6 +236,7 @@ impl Renderer {
         ];
 
         for position in light_positions {
+            // Light source object
             let light = Rc::new(RefCell::new(Object::new(
                 Rc::clone(&cube_mesh),
                 Rc::clone(&light_source),
@@ -248,9 +246,26 @@ impl Renderer {
                 light.transform.position = position;
                 light.transform.scale = glam::Vec3::splat(0.2);
             }
-            self.lights.push(Rc::clone(&light));
             self.scene.add_object(Rc::clone(&light));
+
+            // Actual Light
+            let light = Rc::new(RefCell::new(Light::new_point_light()));
+            {
+                let mut light = light.borrow_mut();
+                light.position = position;
+            }
+            self.scene.add_light(light);
         }
+
+        // Directional light
+        let light = Rc::new(RefCell::new(Light::new_directional_light()));
+        light.borrow_mut().intensity = 0.4;
+        light.borrow_mut().as_directional_light_mut().unwrap().direction = glam::Vec3::new(-0.2, -1.0, -0.3);
+        self.scene.add_light(light);
+
+        // Flashlight
+        let light = Rc::new(RefCell::new(Light::new_spot_light()));
+        self.scene.add_light(light);
 
         Ok(())
     }
@@ -271,7 +286,7 @@ impl Renderer {
             gl::Enable(gl::DEPTH_TEST);
         }
 
-        self.scene.camera.update(args);
+        self.scene.update(args);
 
         // Temporary hack, set camera and light properties for all materials
         // Will be replaced with UBOs
@@ -280,50 +295,71 @@ impl Renderer {
             shader.use_program();
             shader.set_uniform_3fv("viewPos", &self.scene.camera.position().into());
             // Point lights
-            for (i, light) in self.lights.iter().enumerate() {
-                let x = light.borrow_mut().transform.position;
-                shader.set_uniform_3fv(&format!("pointLights[{}].position", i), &x.into());
-                shader.set_uniform_3fv(&format!("pointLights[{}].color", i), &args.ui.light_color);
-                shader.set_uniform_1f(&format!("pointLights[{}].constant", i), 1.0);
-                shader.set_uniform_1f(&format!("pointLights[{}].linear", i), 0.09);
-                shader.set_uniform_1f(&format!("pointLights[{}].quadratic", i), 0.032);
-                shader.set_uniform_1f(
-                    &format!("pointLights[{}].ambient_strength", i),
-                    args.ui.ambient_strength,
+            for (i, light) in self
+                .scene
+                .lights
+                .iter()
+                .filter(|l| l.borrow().is_point_light())
+                .enumerate()
+            {
+                let light = light.borrow();
+                shader.set_uniform_3fv(
+                    &format!("pointLights[{}].position", i),
+                    &light.position.into(),
                 );
+                shader.set_uniform_3fv(&format!("pointLights[{}].color", i), &light.color);
+                shader.set_uniform_1f(&format!("pointLights[{}].intensity", i), light.intensity);
+
+                let light = light.as_point_light().unwrap();
                 shader.set_uniform_1f(
-                    &format!("pointLights[{}].specular_strength", i),
-                    args.ui.specular_strength,
+                    &format!("pointLights[{}].constant", i),
+                    light.attenuation[0],
+                );
+                shader.set_uniform_1f(&format!("pointLights[{}].linear", i), light.attenuation[1]);
+                shader.set_uniform_1f(
+                    &format!("pointLights[{}].quadratic", i),
+                    light.attenuation[2],
                 );
             }
 
             // Directional light
-            shader.set_uniform_3fv("directionalLight.direction", &[-0.2, -1.0, -0.3]);
-            shader.set_uniform_3fv("directionalLight.color", &args.ui.light_color);
-            shader.set_uniform_1f(
-                "directionalLight.ambient_strength",
-                args.ui.ambient_strength * 0.0,
-            );
-            shader.set_uniform_1f(
-                "directionalLight.specular_strength",
-                args.ui.specular_strength * 0.0,
-            );
+            if let Some(light) = self
+                .scene
+                .lights
+                .iter()
+                .find(|l| l.borrow().is_directional_light())
+            {
+                let light = light.borrow();
+                shader.set_uniform_3fv("directionalLight.color", &light.color);
+                shader.set_uniform_1f("directionalLight.intensity", light.intensity);
+
+                let light = light.as_directional_light().unwrap();
+                shader.set_uniform_3fv("directionalLight.direction", &light.direction.into());
+            }
 
             // Flashlight
-            shader.set_uniform_3fv("flashlight.position", &self.scene.camera.position().into());
-            shader.set_uniform_3fv(
-                "flashlight.direction",
-                &self.scene.camera.direction().into(),
-            );
-            shader.set_uniform_1f("flashlight.cutOff", 12.5_f32.to_radians().cos());
-            shader.set_uniform_1f("flashlight.outerCutOff", 17.5_f32.to_radians().cos());
-            shader.set_uniform_1f("flashlight.constant", 1.0);
-            shader.set_uniform_1f("flashlight.linear", 0.09);
-            shader.set_uniform_1f("flashlight.quadratic", 0.032);
-            if self.flashlight {
-                shader.set_uniform_3fv("flashlight.color", &[1.0, 1.0, 1.0]);
-            } else {
-                shader.set_uniform_3fv("flashlight.color", &[0.0, 0.0, 0.0]);
+            if let Some(light) = self
+                .scene
+                .lights
+                .iter()
+                .find(|l| l.borrow().is_spot_light())
+            {
+                let light = light.borrow();
+                shader.set_uniform_3fv("flashlight.position", &light.position.into());
+                if self.flashlight {
+                    shader.set_uniform_3fv("flashlight.color", &light.color);
+                } else {
+                    shader.set_uniform_3fv("flashlight.color", &[0.0, 0.0, 0.0]);
+                }
+                shader.set_uniform_1f("flashlight.intensity", light.intensity);
+
+                let light = light.as_spot_light().unwrap();
+                shader.set_uniform_3fv("flashlight.direction", &light.direction.into());
+                shader.set_uniform_1f("flashlight.cutOff", light.inner_cutoff_rad.cos());
+                shader.set_uniform_1f("flashlight.outerCutOff", light.outer_cutoff_rad.cos());
+                shader.set_uniform_1f("flashlight.constant", light.attenuation[0]);
+                shader.set_uniform_1f("flashlight.linear", light.attenuation[1]);
+                shader.set_uniform_1f("flashlight.quadratic", light.attenuation[2]);
             }
 
             // Camera
@@ -338,21 +374,6 @@ impl Renderer {
             shader.set_uniform_mat4("view", self.scene.camera.view_matrix());
             let (r, g, b) = args.ui.light_color.into();
             material.borrow_mut().set_color("lightColor", r, g, b);
-        }
-
-        // Rotate cubes, a bit hacky
-        let mut i = 0;
-        for cube in self.scene.objects.iter() {
-            let mut cube = cube.borrow_mut();
-            if !cube.rotate {
-                continue;
-            }
-
-            let angle = (20.0 * i as f32).to_radians();
-            let axis = glam::Vec3::new(1.0, 0.3, 0.5).normalize();
-            let quat = glam::Quat::from_axis_angle(axis, args.time.as_secs_f32() * angle);
-            cube.transform.rotation = quat;
-            i += 1;
         }
 
         // Render objects
