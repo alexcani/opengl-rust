@@ -1,10 +1,8 @@
 use std::any::Any;
 
-use crate::scene::Transform;
-
 #[derive(Debug)]
 pub struct Light {
-    pub transform: Transform,
+    pub position: glam::Vec3,
     pub color: [f32; 3],
     pub intensity: f32,
     inner: Box<dyn LightTrait>,
@@ -48,9 +46,10 @@ impl Default for PointLight {
 
 #[derive(Debug)]
 pub struct SpotLight {
+    pub direction: glam::Vec3,
     pub attenuation: [f32; 3], // constant, linear, quadratic
-    pub cutoff_deg: f32,
-    pub outer_cutoff_deg: f32,
+    pub inner_cutoff_rad: f32,
+    pub outer_cutoff_rad: f32,
 }
 
 impl SpotLight {
@@ -73,15 +72,18 @@ impl LightTrait for SpotLight {
 impl Default for SpotLight {
     fn default() -> Self {
         Self {
+            direction: glam::Vec3::new(0.0, 0.0, -1.0),
             attenuation: [1.0, 0.09, 0.032],
-            cutoff_deg: 12.5,
-            outer_cutoff_deg: 17.5,
+            inner_cutoff_rad: 12.5f32.to_radians(),
+            outer_cutoff_rad: 17.5f32.to_radians(),
         }
     }
 }
 
-#[derive(Default, Debug)]
-pub struct DirectionalLight;
+#[derive(Debug)]
+pub struct DirectionalLight {
+    pub direction: glam::Vec3,
+}
 
 impl DirectionalLight {
     #[allow(clippy::new_ret_no_self)]
@@ -97,6 +99,14 @@ impl LightTrait for DirectionalLight {
 
     fn as_any_mut(&mut self) -> &mut dyn Any {
         self
+    }
+}
+
+impl Default for DirectionalLight {
+    fn default() -> Self {
+        Self {
+            direction: glam::Vec3::new(0.0, 0.0, -1.0),
+        }
     }
 }
 
@@ -150,7 +160,7 @@ impl Light {
 
     pub fn new_directional_light() -> Self {
         Self {
-            inner: Box::new(DirectionalLight),
+            inner: Box::new(DirectionalLight::default()),
             ..Default::default()
         }
     }
@@ -159,7 +169,7 @@ impl Light {
 impl Default for Light {
     fn default() -> Self {
         Light {
-            transform: Transform::default(),
+            position: glam::Vec3::new(0.0, 0.0, 0.0),
             color: [1.0, 1.0, 1.0],
             intensity: 1.0,
             inner: Box::new(PointLight::default()),
