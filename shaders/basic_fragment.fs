@@ -9,8 +9,7 @@ struct Material {
 struct DirectionalLight {
     vec3 direction;
     vec3 color;
-    float ambient_strength;
-    float specular_strength;
+    float intensity;
 };
 
 struct PointLight {
@@ -21,8 +20,7 @@ struct PointLight {
     float quadratic;
 
     vec3 color;
-    float ambient_strength;
-    float specular_strength;
+    float intensity;
 };
 
 struct SpotLight {
@@ -37,6 +35,7 @@ struct SpotLight {
     float quadratic;
 
     vec3 color;
+    float intensity;
 };
 
 in vec2 TexCoord;
@@ -55,17 +54,15 @@ uniform PointLight pointLights[NR_POINT_LIGHTS];
 uniform SpotLight flashlight;
 
 vec3 CalculateDirectionalLight(DirectionalLight light, vec3 normal, vec3 viewDir, vec3 diffuse_color, vec3 specular_color) {
-    vec3 ambient = light.ambient_strength * light.color * diffuse_color;
-
     vec3 lightDir = normalize(-light.direction);
     float diff = max(dot(normal, lightDir), 0.0);
     vec3 diffuse = diff * light.color * diffuse_color;
 
     vec3 reflectDir = reflect(-lightDir, normal);
     float spec = pow(max(dot(viewDir, reflectDir), 0.0), material.shininess);
-    vec3 specular = light.specular_strength * spec * light.color * specular_color;
+    vec3 specular = spec * light.color * specular_color;
 
-    return light.ambient_strength * (ambient + diffuse + specular);
+    return light.intensity * (diffuse + specular);
 }
 
 vec3 CalculatePointLight(PointLight light, vec3 normal, vec3 viewDir, vec3 diffuse_color, vec3 specular_color) {
@@ -78,14 +75,10 @@ vec3 CalculatePointLight(PointLight light, vec3 normal, vec3 viewDir, vec3 diffu
     float distance = length(light.position - FragPos);
     float attenuation = 1.0 / (light.constant + light.linear * distance + light.quadratic * (distance * distance));
 
-    vec3 ambient = light.color * diffuse_color * light.ambient_strength;
     vec3 diffuse = diff * light.color * diffuse_color;
-    vec3 specular = light.specular_strength * light.color * specular_color * spec;
-    ambient *= attenuation;
-    diffuse *= attenuation;
-    specular *= attenuation;
+    vec3 specular = light.color * specular_color * spec;
 
-    return (ambient + diffuse + specular);
+    return light.intensity * attenuation * (diffuse + specular);
 }
 
 vec3 CalculateSpotlight(SpotLight light, vec3 normal, vec3 viewDir, vec3 diffuse_color, vec3 specular_color) {
@@ -104,10 +97,8 @@ vec3 CalculateSpotlight(SpotLight light, vec3 normal, vec3 viewDir, vec3 diffuse
 
     vec3 diffuse =  light.color * diffuse_color * diff;
     vec3 specular = light.color * specular_color * spec;
-    diffuse *= intensity * attenuation;
-    specular *= intensity * attenuation;
 
-    return (diffuse + specular);
+    return (diffuse + specular) * intensity * attenuation * light.intensity;
 }
 
 void main()
