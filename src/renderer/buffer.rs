@@ -28,7 +28,10 @@ impl Buffer {
         unsafe {
             gl::GenBuffers(1, &mut id);
         }
-        Buffer { id, ty: type_.as_gl_enum() }
+        Buffer {
+            id,
+            ty: type_.as_gl_enum(),
+        }
     }
 
     pub fn upload_data<T>(&self, data: &[T]) {
@@ -75,20 +78,24 @@ impl UniformBuffer {
     pub fn new(binding_point: GLuint, size: usize) -> Self {
         let buffer = Buffer::new(BufferType::Uniform);
         unsafe {
-            gl::BindBuffer(gl::UNIFORM_BUFFER, buffer.id);
+            buffer.bind();
             gl::BufferData(
                 gl::UNIFORM_BUFFER,
                 size as isize,
                 std::ptr::null(),
                 gl::DYNAMIC_DRAW,
             );
-            gl::BindBuffer(gl::UNIFORM_BUFFER, 0);
+            buffer.unbind();
             gl::BindBufferBase(gl::UNIFORM_BUFFER, binding_point, buffer.id);
         }
-        UniformBuffer { binding_point, buffer }
+        UniformBuffer {
+            binding_point,
+            buffer,
+        }
     }
 
     pub fn update_data<T>(&self, offset: usize, data: &[T]) {
+        self.buffer.bind();
         unsafe {
             gl::BufferSubData(
                 gl::UNIFORM_BUFFER,
@@ -97,10 +104,44 @@ impl UniformBuffer {
                 data.as_ptr() as *const _,
             );
         }
+        self.buffer.unbind();
+    }
+
+    pub fn map_data<T, F: FnOnce(&mut [T])>(
+        &self,
+        offset: usize,
+        len: usize,
+        setter: F,
+    ) -> Result<(), String> {
+        self.buffer.bind();
+        let ptr = unsafe {
+            gl::MapBufferRange(
+                self.buffer.ty,
+                offset as isize,
+                (len * std::mem::size_of::<T>()) as isize,
+                gl::MAP_WRITE_BIT | gl::MAP_INVALIDATE_RANGE_BIT,
+            )
+        } as *mut T;
+        if ptr.is_null() {
+            return Err("Failed to map buffer".to_string());
+        }
+        let slice = unsafe { std::slice::from_raw_parts_mut(ptr, len) };
+        setter(slice);
+        let unmap_success = unsafe { gl::UnmapBuffer(gl::UNIFORM_BUFFER) } == gl::TRUE;
+        self.buffer.unbind();
+
+        if !unmap_success {
+            return Err("Failed to unmap buffer".to_string());
+        }
+
+        Ok(())
     }
 
     pub fn bind(&self) {
         self.buffer.bind();
+        unsafe {
+            gl::BindBufferBase(gl::UNIFORM_BUFFER, self.binding_point, self.buffer.id);
+        }
     }
 
     pub fn unbind(&self) {
