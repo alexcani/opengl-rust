@@ -6,6 +6,7 @@ pub mod texture;
 
 use std::cell::RefCell;
 use std::ffi::CString;
+use std::mem::MaybeUninit;
 use std::rc::Rc;
 use std::time::Duration;
 
@@ -31,13 +32,7 @@ pub struct Renderer {
     light_materials: Vec<Rc<RefCell<Material>>>,
     flashlight: bool,
     camera_ubo: UniformBuffer,
-}
-
-#[repr(C)]
-struct CameraUniforms {
-    view: glam::Mat4,
-    projection: glam::Mat4,
-    view_pos: glam::Vec4,
+    light_ubo: UniformBuffer,
 }
 
 pub struct RenderInfo<'a> {
@@ -62,6 +57,7 @@ impl Renderer {
             light_materials: Vec::new(),
             flashlight: false,
             camera_ubo: UniformBuffer::new(0, std::mem::size_of::<CameraUniforms>()),
+            light_ubo: UniformBuffer::new(1, std::mem::size_of::<LightUniforms>()),
         };
 
         renderer.init().unwrap_or_else(|e| {
@@ -270,7 +266,11 @@ impl Renderer {
         // Directional light
         let light = Rc::new(RefCell::new(Light::new_directional_light()));
         light.borrow_mut().intensity = 0.4;
-        light.borrow_mut().as_directional_light_mut().unwrap().direction = glam::Vec3::new(-0.2, -1.0, -0.3);
+        light
+            .borrow_mut()
+            .as_directional_light_mut()
+            .unwrap()
+            .direction = glam::Vec3::new(-0.2, -1.0, -0.3);
         self.scene.add_light(light);
 
         // Flashlight
@@ -298,89 +298,10 @@ impl Renderer {
 
         self.scene.update(args);
 
-        // Camera parameters
-        self.camera_ubo.map_data(0, 1, |camera: &mut [CameraUniforms]| {
-            camera[0].view = *self.scene.camera.view_matrix();
-            camera[0].projection = *self.scene.camera.projection_matrix();
-            camera[0].view_pos = self.scene.camera.position().extend(1.0);
-        }).expect("Couldn't update camera UBO");
+        self.update_camera_buffer();
+        self.update_light_parameters();
 
-        // Temporary hack, set camera and light properties for all materials
-        // Will be replaced with UBOs
-        if let Some(material) = self.phong_materials.first() {
-            let shader = material.borrow_mut().shader();
-            shader.use_program();
-            // Point lights
-            for (i, light) in self
-                .scene
-                .lights
-                .iter()
-                .filter(|l| l.borrow().is_point_light())
-                .enumerate()
-            {
-                let light = light.borrow();
-                shader.set_uniform_3fv(
-                    &format!("pointLights[{}].position", i),
-                    &light.position.into(),
-                );
-                shader.set_uniform_3fv(&format!("pointLights[{}].color", i), &light.color);
-                shader.set_uniform_1f(&format!("pointLights[{}].intensity", i), light.intensity);
-
-                let light = light.as_point_light().unwrap();
-                shader.set_uniform_1f(
-                    &format!("pointLights[{}].constant", i),
-                    light.attenuation[0],
-                );
-                shader.set_uniform_1f(&format!("pointLights[{}].linear", i), light.attenuation[1]);
-                shader.set_uniform_1f(
-                    &format!("pointLights[{}].quadratic", i),
-                    light.attenuation[2],
-                );
-            }
-
-            // Directional light
-            if let Some(light) = self
-                .scene
-                .lights
-                .iter()
-                .find(|l| l.borrow().is_directional_light())
-            {
-                let light = light.borrow();
-                shader.set_uniform_3fv("directionalLight.color", &light.color);
-                shader.set_uniform_1f("directionalLight.intensity", light.intensity);
-
-                let light = light.as_directional_light().unwrap();
-                shader.set_uniform_3fv("directionalLight.direction", &light.direction.into());
-            }
-
-            // Flashlight
-            if let Some(light) = self
-                .scene
-                .lights
-                .iter()
-                .find(|l| l.borrow().is_spot_light())
-            {
-                let light = light.borrow();
-                shader.set_uniform_3fv("flashlight.position", &light.position.into());
-                if self.flashlight {
-                    shader.set_uniform_3fv("flashlight.color", &light.color);
-                } else {
-                    shader.set_uniform_3fv("flashlight.color", &[0.0, 0.0, 0.0]);
-                }
-                shader.set_uniform_1f("flashlight.intensity", light.intensity);
-
-                let light = light.as_spot_light().unwrap();
-                shader.set_uniform_3fv("flashlight.direction", &light.direction.into());
-                shader.set_uniform_1f("flashlight.cutOff", light.inner_cutoff_rad.cos());
-                shader.set_uniform_1f("flashlight.outerCutOff", light.outer_cutoff_rad.cos());
-                shader.set_uniform_1f("flashlight.constant", light.attenuation[0]);
-                shader.set_uniform_1f("flashlight.linear", light.attenuation[1]);
-                shader.set_uniform_1f("flashlight.quadratic", light.attenuation[2]);
-            }
-
-            // Camera
-        }
-
+        // Color of the light emitter, still one color for all lights
         if let Some(material) = self.light_materials.first() {
             let shader = material.borrow_mut().shader();
             shader.use_program();
@@ -392,6 +313,85 @@ impl Renderer {
         for object in &self.scene.objects {
             object.borrow().render();
         }
+    }
+
+    fn update_camera_buffer(&self) {
+        self.camera_ubo
+            .map_data(0, 1, |camera: &mut [CameraUniforms]| {
+                camera[0].view = *self.scene.camera.view_matrix();
+                camera[0].projection = *self.scene.camera.projection_matrix();
+                camera[0].view_pos = self.scene.camera.position().extend(1.0);
+            })
+            .expect("Couldn't update camera UBO");
+    }
+
+    fn update_light_parameters(&self) {
+        let mut light_uniforms = unsafe { MaybeUninit::<LightUniforms>::zeroed().assume_init() };
+        for light in &self.scene.lights {
+            let light = light.borrow();
+            let color = light.color;
+            let position = light.position;
+            if light.is_spot_light() {
+                let index = light_uniforms.nr_spot_lights as usize;
+                if index >= MAX_SPOT_LIGHTS {
+                    panic!("Exceeded maximum number of spot lights");
+                }
+
+                light_uniforms.spot[index].color = [color[0], color[1], color[2], 1.0];
+                light_uniforms.spot[index].position = [position[0], position[1], position[2], 1.0];
+                light_uniforms.spot[index].intensity = light.intensity;
+                let light = light.as_spot_light().unwrap();
+                let direction = light.direction;
+                let attenuation = light.attenuation;
+                light_uniforms.spot[index].direction =
+                    [direction[0], direction[1], direction[2], 1.0];
+                light_uniforms.spot[index].inner_cutoff_cos = light.inner_cutoff_rad.cos();
+                light_uniforms.spot[index].outer_cutoff_cos = light.outer_cutoff_rad.cos();
+                light_uniforms.spot[index].attenuation =
+                    [attenuation[0], attenuation[1], attenuation[2]];
+                light_uniforms.nr_spot_lights += 1;
+            } else if light.is_point_light() {
+                let index = light_uniforms.nr_point_lights as usize;
+                if index >= MAX_POINT_LIGHTS {
+                    panic!("Exceeded maximum number of point lights");
+                }
+
+                light_uniforms.point[index].color = [color[0], color[1], color[2], 1.0];
+                light_uniforms.point[index].position = [position[0], position[1], position[2], 1.0];
+                light_uniforms.point[index].intensity = light.intensity;
+                let light = light.as_point_light().unwrap();
+                let attenuation = light.attenuation;
+                light_uniforms.point[index].attenuation =
+                    [attenuation[0], attenuation[1], attenuation[2]];
+                light_uniforms.nr_point_lights += 1;
+            } else if light.is_directional_light() {
+                let index = light_uniforms.nr_directional_lights as usize;
+                if index >= MAX_DIRECTIONAL_LIGHTS {
+                    panic!("Exceeded maximum number of directional lights");
+                }
+
+                light_uniforms.directional[index].color =
+                    [light.color[0], light.color[1], light.color[2], 1.0];
+                light_uniforms.directional[index].intensity = light.intensity;
+                let light = light.as_directional_light().unwrap();
+                let direction = light.direction;
+                light_uniforms.directional[index].direction =
+                    [direction[0], direction[1], direction[2], 1.0];
+                light_uniforms.nr_directional_lights += 1;
+            }
+        }
+
+        light_uniforms.ambient.color = {
+            let ambient = &self.scene.ambient_light;
+            [ambient.color[0], ambient.color[1], ambient.color[2], 1.0]
+        };
+        light_uniforms.ambient.intensity = self.scene.ambient_light.intensity;
+
+        self.light_ubo
+            .map_data(0, 1, |data: &mut [LightUniforms]| {
+                data[0] = light_uniforms;
+            })
+            .expect("Couldn't update light UBO");
     }
 
     pub fn resize(&mut self, width: u32, height: u32) {
@@ -412,4 +412,61 @@ impl Renderer {
             }
         }
     }
+}
+
+#[repr(C)]
+struct CameraUniforms {
+    view: glam::Mat4,
+    projection: glam::Mat4,
+    view_pos: glam::Vec4,
+}
+
+#[repr(C)]
+struct DirectionalLightUniforms {
+    color: [f32; 4],
+    direction: [f32; 4],
+    intensity: f32,
+    _padding: [f32; 3],
+}
+
+#[repr(C)]
+struct PointLightUniforms {
+    color: [f32; 4],
+    position: [f32; 4],
+    attenuation: [f32; 3], // constant, linear, quadratic
+    intensity: f32,
+}
+
+#[repr(C)]
+struct SpotLightUniforms {
+    color: [f32; 4],
+    position: [f32; 4],
+    direction: [f32; 4],
+    inner_cutoff_cos: f32,
+    outer_cutoff_cos: f32,
+    attenuation: [f32; 3], // constant, linear, quadratic
+    intensity: f32,
+    _padding: [f32; 2],
+}
+
+#[repr(C)]
+struct AmbientLightUniforms {
+    color: [f32; 4],
+    intensity: f32,
+    _padding: [f32; 3],
+}
+
+const MAX_POINT_LIGHTS: usize = 10;
+const MAX_SPOT_LIGHTS: usize = 5;
+const MAX_DIRECTIONAL_LIGHTS: usize = 5;
+
+#[repr(C)]
+struct LightUniforms {
+    ambient: AmbientLightUniforms,
+    directional: [DirectionalLightUniforms; MAX_DIRECTIONAL_LIGHTS],
+    point: [PointLightUniforms; MAX_POINT_LIGHTS],
+    spot: [SpotLightUniforms; MAX_SPOT_LIGHTS],
+    nr_point_lights: i32,
+    nr_spot_lights: i32,
+    nr_directional_lights: i32
 }
