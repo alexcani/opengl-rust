@@ -10,10 +10,16 @@ pub use camera::Camera;
 pub use light::Light;
 pub use object::{Object, Transform};
 
+pub struct AmbientLight {
+    pub color: glam::Vec3,
+    pub intensity: f32,
+}
+
 pub struct Scene {
     pub camera: Camera,
     pub objects: Vec<Rc<RefCell<Object>>>,
     pub lights: Vec<Rc<RefCell<Light>>>,
+    pub ambient_light: AmbientLight,
 }
 
 impl Scene {
@@ -22,6 +28,10 @@ impl Scene {
             camera: Camera::new(),
             objects: Vec::new(),
             lights: Vec::new(),
+            ambient_light: AmbientLight {
+                color: glam::Vec3::new(1.0, 1.0, 1.0),
+                intensity: 0.0,
+            },
         }
     }
 
