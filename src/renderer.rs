@@ -15,6 +15,7 @@ use winit::keyboard::KeyCode;
 use crate::input::InputManager;
 use crate::scene::{Light, Object, Scene};
 use crate::ui::Ui;
+use buffer::UniformBuffer;
 use material::{Material, PropertyValue};
 use mesh::{Mesh, Vertex};
 use shader::{Shader, ShaderProgram};
@@ -29,6 +30,14 @@ pub struct Renderer {
     phong_materials: Vec<Rc<RefCell<Material>>>,
     light_materials: Vec<Rc<RefCell<Material>>>,
     flashlight: bool,
+    camera_ubo: UniformBuffer,
+}
+
+#[repr(C)]
+struct CameraUniforms {
+    view: glam::Mat4,
+    projection: glam::Mat4,
+    view_pos: glam::Vec4,
 }
 
 pub struct RenderInfo<'a> {
@@ -52,6 +61,7 @@ impl Renderer {
             phong_materials: Vec::new(),
             light_materials: Vec::new(),
             flashlight: false,
+            camera_ubo: UniformBuffer::new(0, std::mem::size_of::<CameraUniforms>()),
         };
 
         renderer.init().unwrap_or_else(|e| {
@@ -288,12 +298,18 @@ impl Renderer {
 
         self.scene.update(args);
 
+        // Camera parameters
+        self.camera_ubo.map_data(0, 1, |camera: &mut [CameraUniforms]| {
+            camera[0].view = *self.scene.camera.view_matrix();
+            camera[0].projection = *self.scene.camera.projection_matrix();
+            camera[0].view_pos = self.scene.camera.position().extend(1.0);
+        }).expect("Couldn't update camera UBO");
+
         // Temporary hack, set camera and light properties for all materials
         // Will be replaced with UBOs
         if let Some(material) = self.phong_materials.first() {
             let shader = material.borrow_mut().shader();
             shader.use_program();
-            shader.set_uniform_3fv("viewPos", &self.scene.camera.position().into());
             // Point lights
             for (i, light) in self
                 .scene
@@ -363,15 +379,11 @@ impl Renderer {
             }
 
             // Camera
-            shader.set_uniform_mat4("projection", self.scene.camera.projection_matrix());
-            shader.set_uniform_mat4("view", self.scene.camera.view_matrix());
         }
 
         if let Some(material) = self.light_materials.first() {
             let shader = material.borrow_mut().shader();
             shader.use_program();
-            shader.set_uniform_mat4("projection", self.scene.camera.projection_matrix());
-            shader.set_uniform_mat4("view", self.scene.camera.view_matrix());
             let (r, g, b) = args.ui.light_color.into();
             material.borrow_mut().set_color("lightColor", r, g, b);
         }

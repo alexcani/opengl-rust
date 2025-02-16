@@ -44,7 +44,12 @@ in vec3 FragPos;
 
 out vec4 FragColor;
 
-uniform vec3 viewPos;
+layout (std140, binding = 0) uniform Camera {
+    mat4 view;
+    mat4 projection;
+    vec4 position;
+} camera;
+
 uniform bool isFloor;
 uniform vec3 floorColor;
 uniform Material material;
@@ -116,6 +121,7 @@ void main()
     else
         specular_color = floorColor;
 
+    vec3 viewPos = camera.position.xyz;
     vec3 normal = normalize(Normal);
     vec3 viewDir = normalize(viewPos - FragPos);
 
