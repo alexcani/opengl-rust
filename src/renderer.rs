@@ -28,7 +28,6 @@ pub struct Renderer {
     wireframe: bool,
     size: (u32, u32),
     scene: Scene,
-    phong_materials: Vec<Rc<RefCell<Material>>>,
     light_materials: Vec<Rc<RefCell<Material>>>,
     flashlight: bool,
     camera_ubo: UniformBuffer,
@@ -53,7 +52,6 @@ impl Renderer {
             wireframe: false,
             size: (1, 1),
             scene: Scene::default(),
-            phong_materials: Vec::new(),
             light_materials: Vec::new(),
             flashlight: false,
             camera_ubo: UniformBuffer::new(0, std::mem::size_of::<CameraUniforms>()),
@@ -193,8 +191,6 @@ impl Renderer {
             Rc::clone(&light_shader),
         )));
 
-        self.phong_materials.push(Rc::clone(&phong_textured));
-        self.phong_materials.push(Rc::clone(&phong_floor));
         self.light_materials.push(Rc::clone(&light_source));
 
         // ==== Scene ====
