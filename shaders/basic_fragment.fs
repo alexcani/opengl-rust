@@ -84,8 +84,6 @@ vec3 CalculateDirectionalLight(DirectionalLight light, vec3 normal, vec3 viewDir
 }
 
 vec3 CalculatePointLight(PointLight light, vec3 normal, vec3 viewDir, vec3 diffuse_color, vec3 specular_color) {
-    light.color = vec4(1.0, 1.0, 1.0, 1.0);
-    light.intensity = 1.0;
     vec3 lightDir = normalize(light.position.xyz - FragPos);
     float diff = max(dot(normal, lightDir), 0.0);
 
