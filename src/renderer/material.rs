@@ -14,7 +14,7 @@ pub struct Material {
 }
 
 #[derive(Clone, PartialEq, Debug)]
-pub enum PropertyValue {
+pub enum MaterialProperty {
     Boolean(bool),
     Integer(i32),
     UInteger(u32),
@@ -22,11 +22,6 @@ pub enum PropertyValue {
     Vec3([f32; 3]),
     Color(f32, f32, f32),
     Texture(Rc<Texture2D>),
-}
-
-#[derive(Clone, Debug)]
-struct MaterialProperty {
-    value: PropertyValue,
 }
 
 impl Material {
@@ -43,16 +38,12 @@ impl Material {
     pub fn new_with_properties(
         name: &str,
         shader: Rc<ShaderProgram>,
-        properties: HashMap<String, PropertyValue>,
+        properties: HashMap<String, MaterialProperty>,
     ) -> Self {
-        let states = properties
-            .into_iter()
-            .map(|(name, property)| (name, MaterialProperty { value: property }))
-            .collect();
         Self {
             name: name.to_string(),
             shader,
-            properties: states,
+            properties,
             texture_to_slot: RefCell::new(HashMap::new()),
             texture_slots: RefCell::new([false; 16]),
         }
@@ -61,19 +52,14 @@ impl Material {
     pub fn clone_with_overrides(
         &self,
         new_name: &str,
-        overrides: HashMap<String, PropertyValue>,
+        overrides: HashMap<String, MaterialProperty>,
     ) -> Self {
-        let new_states: HashMap<_, _> = overrides
-            .into_iter()
-            .map(|(name, property)| (name, MaterialProperty { value: property }))
-            .collect();
-
-        let mut old_states = self.properties.clone();
-        old_states.extend(new_states);
+        let mut properties = self.properties.clone();
+        properties.extend(overrides);
         Self {
             name: new_name.to_string(),
             shader: Rc::clone(&self.shader),
-            properties: old_states,
+            properties,
             texture_to_slot: self.texture_to_slot.clone(),
             texture_slots: self.texture_slots.clone(),
         }
@@ -91,37 +77,37 @@ impl Material {
         Rc::clone(&self.shader)
     }
 
-    pub fn set_property(&mut self, name: &str, value: PropertyValue) {
+    pub fn set_property(&mut self, name: &str, value: MaterialProperty) {
         self.properties
-            .insert(name.to_string(), MaterialProperty { value });
+            .insert(name.to_string(), value);
     }
 
     pub fn set_boolean(&mut self, name: &str, value: bool) {
-        self.set_property(name, PropertyValue::Boolean(value));
+        self.set_property(name, MaterialProperty::Boolean(value));
     }
 
     pub fn set_integer(&mut self, name: &str, value: i32) {
-        self.set_property(name, PropertyValue::Integer(value));
+        self.set_property(name, MaterialProperty::Integer(value));
     }
 
     pub fn set_uinteger(&mut self, name: &str, value: u32) {
-        self.set_property(name, PropertyValue::UInteger(value));
+        self.set_property(name, MaterialProperty::UInteger(value));
     }
 
     pub fn set_float(&mut self, name: &str, value: f32) {
-        self.set_property(name, PropertyValue::Float(value));
+        self.set_property(name, MaterialProperty::Float(value));
     }
 
     pub fn set_vec3(&mut self, name: &str, value: [f32; 3]) {
-        self.set_property(name, PropertyValue::Vec3(value));
+        self.set_property(name, MaterialProperty::Vec3(value));
     }
 
     pub fn set_color(&mut self, name: &str, r: f32, g: f32, b: f32) {
-        self.set_property(name, PropertyValue::Color(r, g, b));
+        self.set_property(name, MaterialProperty::Color(r, g, b));
     }
 
     pub fn set_texture(&mut self, name: &str, texture: Rc<Texture2D>) {
-        self.set_property(name, PropertyValue::Texture(texture));
+        self.set_property(name, MaterialProperty::Texture(texture));
     }
 
     pub fn delete_property(&mut self, name: &str) {
@@ -131,27 +117,27 @@ impl Material {
     pub fn use_material(&self) {
         self.shader.use_program();
 
-        for (name, state) in &self.properties {
-            match &state.value {
-                PropertyValue::Boolean(value) => {
+        for (name, value) in &self.properties {
+            match value {
+                MaterialProperty::Boolean(value) => {
                     self.shader.set_uniform_1i(name, *value as i32);
                 }
-                PropertyValue::Integer(value) => {
+                MaterialProperty::Integer(value) => {
                     self.shader.set_uniform_1i(name, *value);
                 }
-                PropertyValue::UInteger(value) => {
+                MaterialProperty::UInteger(value) => {
                     self.shader.set_uniform_1ui(name, *value);
                 }
-                PropertyValue::Float(value) => {
+                MaterialProperty::Float(value) => {
                     self.shader.set_uniform_1f(name, *value);
                 }
-                PropertyValue::Vec3(value) => {
+                MaterialProperty::Vec3(value) => {
                     self.shader.set_uniform_3fv(name, value);
                 }
-                PropertyValue::Color(r, g, b) => {
+                MaterialProperty::Color(r, g, b) => {
                     self.shader.set_uniform_3f(name, *r, *g, *b);
                 }
-                PropertyValue::Texture(texture) => {
+                MaterialProperty::Texture(texture) => {
                     let slot = self.texture_to_slot.borrow().get(texture).copied();
                     let texture_slot = match slot {
                         Some(slot) => slot,
@@ -176,8 +162,8 @@ impl Material {
         let used_textures: HashSet<_> = self
             .properties
             .values()
-            .filter_map(|state| {
-                if let PropertyValue::Texture(texture) = &state.value {
+            .filter_map(|value| {
+                if let MaterialProperty::Texture(texture) = value {
                     Some(Rc::clone(texture))
                 } else {
                     None

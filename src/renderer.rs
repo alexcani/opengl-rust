@@ -17,7 +17,7 @@ use crate::input::InputManager;
 use crate::scene::{Light, Object, Scene};
 use crate::ui::Ui;
 use buffer::UniformBuffer;
-use material::{Material, PropertyValue};
+use material::{Material, MaterialProperty};
 use mesh::{Mesh, Vertex};
 use shader::{Shader, ShaderProgram};
 use texture::Texture2D;
@@ -156,14 +156,14 @@ impl Renderer {
             [
                 (
                     "material.diffuse".to_string(),
-                    PropertyValue::Texture(Rc::clone(&container_texture_diffuse)),
+                    MaterialProperty::Texture(Rc::clone(&container_texture_diffuse)),
                 ),
                 (
                     "material.specular".to_string(),
-                    PropertyValue::Texture(Rc::clone(&container_texture_specular)),
+                    MaterialProperty::Texture(Rc::clone(&container_texture_specular)),
                 ),
-                ("material.shininess".to_string(), PropertyValue::Integer(32)),
-                ("isFloor".to_string(), PropertyValue::Boolean(false)),
+                ("material.shininess".to_string(), MaterialProperty::Integer(32)),
+                ("isFloor".to_string(), MaterialProperty::Boolean(false)),
             ]
             .into(),
         )));
@@ -172,10 +172,10 @@ impl Renderer {
             phong_textured.borrow().clone_with_overrides(
                 "phong_floor",
                 [
-                    ("isFloor".to_string(), PropertyValue::Boolean(true)),
+                    ("isFloor".to_string(), MaterialProperty::Boolean(true)),
                     (
                         "floorColor".to_string(),
-                        PropertyValue::Color(0.5, 0.5, 0.5),
+                        MaterialProperty::Color(0.5, 0.5, 0.5),
                     ),
                 ]
                 .into(),
