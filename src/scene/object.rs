@@ -2,7 +2,7 @@ use std::rc::Rc;
 use std::cell::RefCell;
 
 use crate::renderer::mesh::Mesh;
-use crate::renderer::material::Material;
+use crate::renderer::material::{Material, PropertiesMap};
 
 #[derive(Debug)]
 pub struct Transform {
@@ -35,6 +35,7 @@ pub struct Object {
     pub transform: Transform,
     pub rotate: bool,
     material: Rc<RefCell<Material>>,
+
     mesh: Rc<Mesh>,
 }
 
@@ -50,7 +51,7 @@ impl Object {
 
     pub fn render(&self) {
         let material = self.material.borrow();
-        material.use_material();
+        material.use_material(&Default::default());
         material.shader().set_uniform_mat4("model", &self.transform.model_matrix());
         self.mesh.draw();
     }

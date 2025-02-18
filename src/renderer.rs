@@ -181,10 +181,11 @@ impl Renderer {
                 .into(),
             ),
         ));
-        phong_floor.borrow_mut().delete_property("material.diffuse");
+        phong_floor.borrow_mut().properties_mut().delete("material.diffuse");
         phong_floor
             .borrow_mut()
-            .delete_property("material.specular");
+            .properties_mut()
+            .delete("material.specular");
 
         let light_source = Rc::new(RefCell::new(Material::new(
             "light_source",
@@ -302,7 +303,7 @@ impl Renderer {
             let shader = material.borrow_mut().shader();
             shader.use_program();
             let (r, g, b) = args.ui.light_color.into();
-            material.borrow_mut().set_color("lightColor", r, g, b);
+            material.borrow_mut().properties_mut().set_color("lightColor", r, g, b);
         }
 
         // Render objects

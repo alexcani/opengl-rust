@@ -8,7 +8,7 @@ use crate::renderer::{ShaderProgram, Texture2D};
 pub struct Material {
     name: String,
     shader: Rc<ShaderProgram>,
-    properties: HashMap<String, MaterialProperty>,
+    properties: PropertiesMap,
     texture_to_slot: RefCell<HashMap<Rc<Texture2D>, u32>>,
     texture_slots: RefCell<[bool; 16]>, // Mark which slots are in use
 }
@@ -29,7 +29,7 @@ impl Material {
         Self {
             name: name.to_string(),
             shader,
-            properties: HashMap::new(),
+            properties: PropertiesMap::new(),
             texture_to_slot: RefCell::new(HashMap::new()),
             texture_slots: RefCell::new([false; 16]),
         }
@@ -38,7 +38,7 @@ impl Material {
     pub fn new_with_properties(
         name: &str,
         shader: Rc<ShaderProgram>,
-        properties: HashMap<String, MaterialProperty>,
+        properties: PropertiesMap,
     ) -> Self {
         Self {
             name: name.to_string(),
@@ -55,7 +55,7 @@ impl Material {
         overrides: HashMap<String, MaterialProperty>,
     ) -> Self {
         let mut properties = self.properties.clone();
-        properties.extend(overrides);
+        properties.map.extend(overrides);
         Self {
             name: new_name.to_string(),
             shader: Rc::clone(&self.shader),
@@ -77,47 +77,23 @@ impl Material {
         Rc::clone(&self.shader)
     }
 
-    pub fn set_property(&mut self, name: &str, value: MaterialProperty) {
-        self.properties
-            .insert(name.to_string(), value);
+    pub fn properties(&self) -> &PropertiesMap {
+        &self.properties
     }
 
-    pub fn set_boolean(&mut self, name: &str, value: bool) {
-        self.set_property(name, MaterialProperty::Boolean(value));
+    pub fn properties_mut(&mut self) -> &mut PropertiesMap {
+        &mut self.properties
     }
 
-    pub fn set_integer(&mut self, name: &str, value: i32) {
-        self.set_property(name, MaterialProperty::Integer(value));
-    }
-
-    pub fn set_uinteger(&mut self, name: &str, value: u32) {
-        self.set_property(name, MaterialProperty::UInteger(value));
-    }
-
-    pub fn set_float(&mut self, name: &str, value: f32) {
-        self.set_property(name, MaterialProperty::Float(value));
-    }
-
-    pub fn set_vec3(&mut self, name: &str, value: [f32; 3]) {
-        self.set_property(name, MaterialProperty::Vec3(value));
-    }
-
-    pub fn set_color(&mut self, name: &str, r: f32, g: f32, b: f32) {
-        self.set_property(name, MaterialProperty::Color(r, g, b));
-    }
-
-    pub fn set_texture(&mut self, name: &str, texture: Rc<Texture2D>) {
-        self.set_property(name, MaterialProperty::Texture(texture));
-    }
-
-    pub fn delete_property(&mut self, name: &str) {
-        self.properties.remove(name);
-    }
-
-    pub fn use_material(&self) {
+    pub fn use_material(&self, overrides: &PropertiesMap) {
         self.shader.use_program();
 
-        for (name, value) in &self.properties {
+        for (name, value) in &self.properties.map {
+            let value = match overrides.map.get(name) {
+                Some(value) => value,
+                None => value,
+            };
+
             match value {
                 MaterialProperty::Boolean(value) => {
                     self.shader.set_uniform_1i(name, *value as i32);
@@ -161,6 +137,7 @@ impl Material {
     fn update_texture_slots(&self) {
         let used_textures: HashSet<_> = self
             .properties
+            .map
             .values()
             .filter_map(|value| {
                 if let MaterialProperty::Texture(texture) = value {
@@ -198,6 +175,70 @@ impl Material {
             self.texture_to_slot
                 .borrow_mut()
                 .insert(Rc::clone(texture), slot as u32);
+        }
+    }
+}
+
+// Holds a set of properties for a material
+#[derive(Clone, Default)]
+pub struct PropertiesMap {
+    map: HashMap<String, MaterialProperty>,
+}
+
+impl PropertiesMap {
+    pub fn new() -> Self {
+        Self {
+            map: HashMap::new(),
+        }
+    }
+
+    pub fn set(&mut self, name: &str, value: MaterialProperty) {
+        self.map.insert(name.to_string(), value);
+    }
+
+    pub fn set_boolean(&mut self, name: &str, value: bool) {
+        self.set(name, MaterialProperty::Boolean(value));
+    }
+
+    pub fn set_integer(&mut self, name: &str, value: i32) {
+        self.set(name, MaterialProperty::Integer(value));
+    }
+
+    pub fn set_uinteger(&mut self, name: &str, value: u32) {
+        self.set(name, MaterialProperty::UInteger(value));
+    }
+
+    pub fn set_float(&mut self, name: &str, value: f32) {
+        self.set(name, MaterialProperty::Float(value));
+    }
+
+    pub fn set_vec3(&mut self, name: &str, value: [f32; 3]) {
+        self.set(name, MaterialProperty::Vec3(value));
+    }
+
+    pub fn set_color(&mut self, name: &str, r: f32, g: f32, b: f32) {
+        self.set(name, MaterialProperty::Color(r, g, b));
+    }
+
+    pub fn set_texture(&mut self, name: &str, texture: Rc<Texture2D>) {
+        self.set(name, MaterialProperty::Texture(texture));
+    }
+
+    pub fn delete(&mut self, name: &str) {
+        self.map.remove(name);
+    }
+}
+
+impl From<HashMap<String, MaterialProperty>> for PropertiesMap {
+    fn from(map: HashMap<String, MaterialProperty>) -> Self {
+        Self { map }
+    }
+}
+
+impl<const N: usize> From<[(String, MaterialProperty); N]> for PropertiesMap {
+    fn from(array: [(String, MaterialProperty); N]) -> Self {
+        Self {
+            map: array.into()
         }
     }
 }
