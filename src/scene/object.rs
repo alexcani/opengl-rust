@@ -34,8 +34,8 @@ impl Default for Transform {
 pub struct Object {
     pub transform: Transform,
     pub rotate: bool,
+    pub material_overrides: PropertiesMap,
     material: Rc<RefCell<Material>>,
-
     mesh: Rc<Mesh>,
 }
 
@@ -44,6 +44,7 @@ impl Object {
         Self {
             transform: Transform::default(),
             rotate: false,
+            material_overrides: PropertiesMap::new(),
             material,
             mesh,
         }
@@ -51,7 +52,7 @@ impl Object {
 
     pub fn render(&self) {
         let material = self.material.borrow();
-        material.use_material(&Default::default());
+        material.use_material(&self.material_overrides);
         material.shader().set_uniform_mat4("model", &self.transform.model_matrix());
         self.mesh.draw();
     }
