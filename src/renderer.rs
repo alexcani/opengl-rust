@@ -150,7 +150,7 @@ impl Renderer {
         let cube_mesh = Rc::new(cube_mesh);
 
         // ==== Materials ====
-        let phong_textured = Rc::new(RefCell::new(Material::new_with_properties(
+        let phong_material = Rc::new(RefCell::new(Material::new_with_properties(
             "phong_textured",
             Rc::clone(&objects_shader),
             [
@@ -164,35 +164,17 @@ impl Renderer {
                 ),
                 ("material.shininess".to_string(), MaterialProperty::Integer(32)),
                 ("isFloor".to_string(), MaterialProperty::Boolean(false)),
+                ("floorColor".to_string(), MaterialProperty::Color(0.5, 0.5, 0.5)),
             ]
             .into(),
         )));
 
-        let phong_floor = Rc::new(RefCell::new(
-            phong_textured.borrow().clone_with_overrides(
-                "phong_floor",
-                [
-                    ("isFloor".to_string(), MaterialProperty::Boolean(true)),
-                    (
-                        "floorColor".to_string(),
-                        MaterialProperty::Color(0.5, 0.5, 0.5),
-                    ),
-                ]
-                .into(),
-            ),
-        ));
-        phong_floor.borrow_mut().properties_mut().delete("material.diffuse");
-        phong_floor
-            .borrow_mut()
-            .properties_mut()
-            .delete("material.specular");
-
-        let light_source = Rc::new(RefCell::new(Material::new(
+        let light_material = Rc::new(RefCell::new(Material::new(
             "light_source",
             Rc::clone(&light_shader),
         )));
 
-        self.light_materials.push(Rc::clone(&light_source));
+        self.light_materials.push(Rc::clone(&light_material));
 
         // ==== Scene ====
         let cube_positions = [
@@ -211,7 +193,7 @@ impl Renderer {
         for position in cube_positions {
             let cube = Rc::new(RefCell::new(Object::new(
                 Rc::clone(&cube_mesh),
-                Rc::clone(&phong_textured),
+                Rc::clone(&phong_material),
             )));
             cube.borrow_mut().transform.position = position;
             cube.borrow_mut().rotate = true;
@@ -221,12 +203,13 @@ impl Renderer {
         // Floor
         let floor = Rc::new(RefCell::new(Object::new(
             Rc::clone(&cube_mesh),
-            Rc::clone(&phong_floor),
+            Rc::clone(&phong_material),
         )));
         {
             let mut floor = floor.borrow_mut();
             floor.transform.position = glam::vec3(0.0, -3.0, 0.0);
             floor.transform.scale = glam::Vec3::new(50.0, 0.1, 50.0);
+            floor.material_overrides.set_boolean("isFloor", true);
         }
         self.scene.add_object(Rc::clone(&floor));
 
@@ -242,7 +225,7 @@ impl Renderer {
             // Light source object
             let light = Rc::new(RefCell::new(Object::new(
                 Rc::clone(&cube_mesh),
-                Rc::clone(&light_source),
+                Rc::clone(&light_material),
             )));
             {
                 let mut light = light.borrow_mut();

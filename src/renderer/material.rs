@@ -237,8 +237,6 @@ impl From<HashMap<String, MaterialProperty>> for PropertiesMap {
 
 impl<const N: usize> From<[(String, MaterialProperty); N]> for PropertiesMap {
     fn from(array: [(String, MaterialProperty); N]) -> Self {
-        Self {
-            map: array.into()
-        }
+        Self { map: array.into() }
     }
 }
