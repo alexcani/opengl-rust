@@ -2,7 +2,8 @@ use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 
-use crate::renderer::{ShaderProgram, Texture2D};
+use crate::renderer::shader::ShaderProgram;
+use crate::renderer::texture::Texture2D;
 
 #[derive(Clone)]
 pub struct Material {

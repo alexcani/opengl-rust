@@ -4,31 +4,22 @@ pub mod mesh;
 pub mod shader;
 pub mod texture;
 
-use std::cell::RefCell;
 use std::ffi::CString;
 use std::mem::MaybeUninit;
-use std::rc::Rc;
 use std::time::Duration;
 
 use glutin::display::GlDisplay;
 use winit::keyboard::KeyCode;
 
 use crate::input::InputManager;
-use crate::scene::{Light, Object, Scene};
+use crate::scene::Scene;
 use crate::ui::Ui;
 use buffer::UniformBuffer;
-use material::{Material, MaterialProperty};
-use mesh::{Mesh, Vertex};
-use shader::{Shader, ShaderProgram};
-use texture::Texture2D;
 
 use gl::types::*;
 
 pub struct Renderer {
     wireframe: bool,
-    size: (u32, u32),
-    scene: Scene,
-    light_materials: Vec<Rc<RefCell<Material>>>,
     flashlight: bool,
     camera_ubo: UniformBuffer,
     light_ubo: UniformBuffer,
@@ -48,219 +39,15 @@ impl Renderer {
             display.get_proc_address(s.as_c_str())
         });
 
-        let mut renderer = Renderer {
+        Renderer {
             wireframe: false,
-            size: (1, 1),
-            scene: Scene::default(),
-            light_materials: Vec::new(),
             flashlight: false,
             camera_ubo: UniformBuffer::new(0, std::mem::size_of::<CameraUniforms>()),
             light_ubo: UniformBuffer::new(1, std::mem::size_of::<LightUniforms>()),
-        };
-
-        renderer.init().unwrap_or_else(|e| {
-            println!("Failed to initialize renderer: {}", e);
-            std::process::exit(1);
-        });
-
-        renderer
+        }
     }
 
-    fn init(&mut self) -> Result<(), String> {
-        let cube_vertices: [Vertex; 36] = [
-            Vertex([-0.5, -0.5, -0.5], [0.0, 0.0, -1.0], [0.0, 0.0]),
-            Vertex([0.5, -0.5, -0.5], [0.0, 0.0, -1.0], [1.0, 0.0]),
-            Vertex([0.5, 0.5, -0.5], [0.0, 0.0, -1.0], [1.0, 1.0]),
-            Vertex([0.5, 0.5, -0.5], [0.0, 0.0, -1.0], [1.0, 1.0]),
-            Vertex([-0.5, 0.5, -0.5], [0.0, 0.0, -1.0], [0.0, 1.0]),
-            Vertex([-0.5, -0.5, -0.5], [0.0, 0.0, -1.0], [0.0, 0.0]),
-            Vertex([-0.5, -0.5, 0.5], [0.0, 0.0, 1.0], [0.0, 0.0]),
-            Vertex([0.5, -0.5, 0.5], [0.0, 0.0, 1.0], [1.0, 0.0]),
-            Vertex([0.5, 0.5, 0.5], [0.0, 0.0, 1.0], [1.0, 1.0]),
-            Vertex([0.5, 0.5, 0.5], [0.0, 0.0, 1.0], [1.0, 1.0]),
-            Vertex([-0.5, 0.5, 0.5], [0.0, 0.0, 1.0], [0.0, 1.0]),
-            Vertex([-0.5, -0.5, 0.5], [0.0, 0.0, 1.0], [0.0, 0.0]),
-            Vertex([-0.5, 0.5, 0.5], [-1.0, 0.0, 0.0], [1.0, 0.0]),
-            Vertex([-0.5, 0.5, -0.5], [-1.0, 0.0, 0.0], [1.0, 1.0]),
-            Vertex([-0.5, -0.5, -0.5], [-1.0, 0.0, 0.0], [0.0, 1.0]),
-            Vertex([-0.5, -0.5, -0.5], [-1.0, 0.0, 0.0], [0.0, 1.0]),
-            Vertex([-0.5, -0.5, 0.5], [-1.0, 0.0, 0.0], [0.0, 0.0]),
-            Vertex([-0.5, 0.5, 0.5], [-1.0, 0.0, 0.0], [1.0, 0.0]),
-            Vertex([0.5, 0.5, 0.5], [1.0, 0.0, 0.0], [1.0, 0.0]),
-            Vertex([0.5, 0.5, -0.5], [1.0, 0.0, 0.0], [1.0, 1.0]),
-            Vertex([0.5, -0.5, -0.5], [1.0, 0.0, 0.0], [0.0, 1.0]),
-            Vertex([0.5, -0.5, -0.5], [1.0, 0.0, 0.0], [0.0, 1.0]),
-            Vertex([0.5, -0.5, 0.5], [1.0, 0.0, 0.0], [0.0, 0.0]),
-            Vertex([0.5, 0.5, 0.5], [1.0, 0.0, 0.0], [1.0, 0.0]),
-            Vertex([-0.5, -0.5, -0.5], [0.0, -1.0, 0.0], [0.0, 1.0]),
-            Vertex([0.5, -0.5, -0.5], [0.0, -1.0, 0.0], [1.0, 1.0]),
-            Vertex([0.5, -0.5, 0.5], [0.0, -1.0, 0.0], [1.0, 0.0]),
-            Vertex([0.5, -0.5, 0.5], [0.0, -1.0, 0.0], [1.0, 0.0]),
-            Vertex([-0.5, -0.5, 0.5], [0.0, -1.0, 0.0], [0.0, 0.0]),
-            Vertex([-0.5, -0.5, -0.5], [0.0, -1.0, 0.0], [0.0, 1.0]),
-            Vertex([-0.5, 0.5, -0.5], [0.0, 1.0, 0.0], [0.0, 1.0]),
-            Vertex([0.5, 0.5, -0.5], [0.0, 1.0, 0.0], [1.0, 1.0]),
-            Vertex([0.5, 0.5, 0.5], [0.0, 1.0, 0.0], [1.0, 0.0]),
-            Vertex([0.5, 0.5, 0.5], [0.0, 1.0, 0.0], [1.0, 0.0]),
-            Vertex([-0.5, 0.5, 0.5], [0.0, 1.0, 0.0], [0.0, 0.0]),
-            Vertex([-0.5, 0.5, -0.5], [0.0, 1.0, 0.0], [0.0, 1.0]),
-        ];
-
-        // ==== Shaders ====
-        // Object rendering shader
-        let vertex_shader =
-            Shader::from_file(shader::ShaderType::Vertex, "./shaders/basic_vertex.vs")?;
-        vertex_shader.compile()?;
-
-        let fragment_shader =
-            Shader::from_file(shader::ShaderType::Fragment, "./shaders/basic_fragment.fs")?;
-        fragment_shader.compile()?;
-
-        let mut shader = ShaderProgram::new();
-        shader.attach_shader(&vertex_shader);
-        shader.attach_shader(&fragment_shader);
-        shader.link()?;
-
-        let objects_shader = Rc::new(shader);
-
-        // Light source rendering shader
-        let vertex_shader =
-            Shader::from_file(shader::ShaderType::Vertex, "./shaders/light_source.vs")?;
-        vertex_shader.compile()?;
-        let fragment_shader =
-            Shader::from_file(shader::ShaderType::Fragment, "./shaders/light_source.fs")?;
-        fragment_shader.compile()?;
-        let mut light_shader = ShaderProgram::new();
-        light_shader.attach_shader(&vertex_shader);
-        light_shader.attach_shader(&fragment_shader);
-        light_shader.link()?;
-
-        let light_shader = Rc::new(light_shader);
-
-        // ==== Textures ====
-        let container_texture_diffuse =
-            Rc::new(Texture2D::new_from_file("./textures/container2.png")?);
-        let container_texture_specular = Rc::new(Texture2D::new_from_file(
-            "./textures/container2_specular.png",
-        )?);
-
-        // ==== Meshes ====
-        let mut cube_mesh = Mesh::new();
-        cube_mesh.init(&cube_vertices, None);
-        let cube_mesh = Rc::new(cube_mesh);
-
-        // ==== Materials ====
-        let phong_material = Rc::new(RefCell::new(Material::new_with_properties(
-            "phong_textured",
-            Rc::clone(&objects_shader),
-            [
-                (
-                    "material.diffuse".to_string(),
-                    MaterialProperty::Texture(Rc::clone(&container_texture_diffuse)),
-                ),
-                (
-                    "material.specular".to_string(),
-                    MaterialProperty::Texture(Rc::clone(&container_texture_specular)),
-                ),
-                ("material.shininess".to_string(), MaterialProperty::Integer(32)),
-                ("isFloor".to_string(), MaterialProperty::Boolean(false)),
-                ("floorColor".to_string(), MaterialProperty::Color(0.5, 0.5, 0.5)),
-            ]
-            .into(),
-        )));
-
-        let light_material = Rc::new(RefCell::new(Material::new(
-            "light_source",
-            Rc::clone(&light_shader),
-        )));
-
-        self.light_materials.push(Rc::clone(&light_material));
-
-        // ==== Scene ====
-        let cube_positions = [
-            glam::Vec3::new(0.0, 0.0, 0.0),
-            glam::Vec3::new(2.0, 5.0, -15.0),
-            glam::Vec3::new(-1.5, -2.2, -2.5),
-            glam::Vec3::new(-3.8, -2.0, -12.3),
-            glam::Vec3::new(2.4, -0.4, -3.5),
-            glam::Vec3::new(-1.7, 3.0, -7.5),
-            glam::Vec3::new(1.3, -2.0, -2.5),
-            glam::Vec3::new(1.5, 2.0, -2.5),
-            glam::Vec3::new(1.5, 0.2, -1.5),
-            glam::Vec3::new(-1.3, 1.0, -1.5),
-        ];
-
-        for position in cube_positions {
-            let cube = Rc::new(RefCell::new(Object::new(
-                Rc::clone(&cube_mesh),
-                Rc::clone(&phong_material),
-            )));
-            cube.borrow_mut().transform.position = position;
-            cube.borrow_mut().rotate = true;
-            self.scene.add_object(Rc::clone(&cube));
-        }
-
-        // Floor
-        let floor = Rc::new(RefCell::new(Object::new(
-            Rc::clone(&cube_mesh),
-            Rc::clone(&phong_material),
-        )));
-        {
-            let mut floor = floor.borrow_mut();
-            floor.transform.position = glam::vec3(0.0, -3.0, 0.0);
-            floor.transform.scale = glam::Vec3::new(50.0, 0.1, 50.0);
-            floor.material_overrides.set_boolean("isFloor", true);
-        }
-        self.scene.add_object(Rc::clone(&floor));
-
-        // Light sources
-        let light_positions = [
-            glam::Vec3::new(0.7, 0.2, 2.0),
-            glam::Vec3::new(2.3, 10.3, -4.0),
-            glam::Vec3::new(-4.0, 2.0, -12.0),
-            glam::Vec3::new(0.0, 0.0, -3.0),
-        ];
-
-        for position in light_positions {
-            // Light source object
-            let light = Rc::new(RefCell::new(Object::new(
-                Rc::clone(&cube_mesh),
-                Rc::clone(&light_material),
-            )));
-            {
-                let mut light = light.borrow_mut();
-                light.transform.position = position;
-                light.transform.scale = glam::Vec3::splat(0.2);
-            }
-            self.scene.add_object(Rc::clone(&light));
-
-            // Actual Light
-            let light = Rc::new(RefCell::new(Light::new_point_light()));
-            {
-                let mut light = light.borrow_mut();
-                light.position = position;
-            }
-            self.scene.add_light(light);
-        }
-
-        // Directional light
-        let light = Rc::new(RefCell::new(Light::new_directional_light()));
-        light.borrow_mut().intensity = 0.4;
-        light
-            .borrow_mut()
-            .as_directional_light_mut()
-            .unwrap()
-            .direction = glam::Vec3::new(-0.2, -1.0, -0.3);
-        self.scene.add_light(light);
-
-        // Flashlight
-        let light = Rc::new(RefCell::new(Light::new_spot_light()));
-        self.scene.add_light(light);
-
-        Ok(())
-    }
-
-    pub fn render(&mut self, args: &RenderInfo) {
+    pub fn render(&mut self, scene: &Scene, args: &RenderInfo) {
         let input = args.input_manager;
         if input.is_key_just_pressed(KeyCode::KeyL) {
             self.toggle_wireframe();
@@ -276,38 +63,28 @@ impl Renderer {
             gl::Enable(gl::DEPTH_TEST);
         }
 
-        self.scene.update(args);
-
-        self.update_camera_buffer();
-        self.update_light_parameters();
-
-        // Color of the light emitter, still one color for all lights
-        if let Some(material) = self.light_materials.first() {
-            let shader = material.borrow_mut().shader();
-            shader.use_program();
-            let (r, g, b) = args.ui.light_color.into();
-            material.borrow_mut().properties_mut().set_color("lightColor", r, g, b);
-        }
+        self.update_camera_buffer(scene);
+        self.update_light_parameters(scene);
 
         // Render objects
-        for object in &self.scene.objects {
+        for object in &scene.objects {
             object.borrow().render();
         }
     }
 
-    fn update_camera_buffer(&self) {
+    fn update_camera_buffer(&self, scene: &Scene) {
         self.camera_ubo
             .map_data(0, 1, |camera: &mut [CameraUniforms]| {
-                camera[0].view = *self.scene.camera.view_matrix();
-                camera[0].projection = *self.scene.camera.projection_matrix();
-                camera[0].view_pos = self.scene.camera.position().extend(1.0);
+                camera[0].view = *scene.camera.view_matrix();
+                camera[0].projection = *scene.camera.projection_matrix();
+                camera[0].view_pos = scene.camera.position().extend(1.0);
             })
             .expect("Couldn't update camera UBO");
     }
 
-    fn update_light_parameters(&self) {
+    fn update_light_parameters(&self, scene: &Scene) {
         let mut light_uniforms = unsafe { MaybeUninit::<LightUniforms>::zeroed().assume_init() };
-        for light in &self.scene.lights {
+        for light in &scene.lights {
             let light = light.borrow();
             let color = light.color;
             let position = light.position;
@@ -362,10 +139,10 @@ impl Renderer {
         }
 
         light_uniforms.ambient.color = {
-            let ambient = &self.scene.ambient_light;
+            let ambient = &scene.ambient_light;
             [ambient.color[0], ambient.color[1], ambient.color[2], 1.0]
         };
-        light_uniforms.ambient.intensity = self.scene.ambient_light.intensity;
+        light_uniforms.ambient.intensity = scene.ambient_light.intensity;
 
         self.light_ubo
             .map_data(0, 1, |data: &mut [LightUniforms]| {
@@ -378,8 +155,6 @@ impl Renderer {
         unsafe {
             gl::Viewport(0, 0, width as GLsizei, height as GLsizei);
         }
-        self.size = (width, height);
-        self.scene.camera.resize(width, height);
     }
 
     pub fn toggle_wireframe(&mut self) {

@@ -18,6 +18,7 @@ use winit::window::{CursorGrabMode, Window};
 use opengl_rust::input::InputManager;
 use opengl_rust::renderer::{RenderInfo, Renderer};
 use opengl_rust::ui::Ui;
+use opengl_rust::scene::Scene;
 
 struct GfxData {
     surface: Surface<WindowSurface>,
@@ -31,6 +32,7 @@ struct GfxData {
 pub struct App {
     gfx_data: Option<GfxData>,
     renderer: Option<Renderer>,
+    scene: Option<Scene>,
     gui: Ui,
     fps_counter: Fps,
     input_manager: InputManager,
@@ -44,6 +46,7 @@ impl App {
         App {
             gfx_data: None,
             renderer: None,
+            scene: None,
             gui: Ui::default(),
             fps_counter: Fps::new(),
             input_manager: InputManager::default(),
@@ -81,13 +84,17 @@ impl App {
                 self.gui.run(ctx);
             });
 
-            let renderer = self.renderer.as_mut().unwrap();
-            renderer.render(&RenderInfo {
+            let render_info = RenderInfo {
                 dt,
                 time,
                 input_manager: &self.input_manager,
                 ui: &self.gui,
-            });
+            };
+
+            self.scene.as_mut().unwrap().update(&render_info);
+
+            let renderer = self.renderer.as_mut().unwrap();
+            renderer.render(self.scene.as_ref().unwrap(), &render_info);
 
             // Render UI on top of everything
             egui_glow.paint(window);
@@ -189,6 +196,11 @@ impl ApplicationHandler for App {
             window,
         });
         self.renderer = Some(Renderer::new(&config.display()));
+        self.scene = Some(Scene::new());
+        self.scene.as_mut().unwrap().init().unwrap_or_else(|e| {
+            println!("Failed to initialize renderer: {}", e);
+            std::process::exit(1);
+        });
     }
 
     fn window_event(
@@ -221,6 +233,7 @@ impl ApplicationHandler for App {
             WindowEvent::Resized(size) if size.height > 0 && size.width > 0 => {
                 let renderer = self.renderer.as_mut().unwrap();
                 renderer.resize(size.width, size.height);
+                self.scene.as_mut().unwrap().camera.resize(size.width, size.height);
             }
             WindowEvent::KeyboardInput { event, .. } => {
                 self.input_manager.process_key_event(&event);
