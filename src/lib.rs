@@ -1,3 +1,4 @@
+pub mod resource;
 pub mod renderer;
 pub mod scene;
 pub mod input;
